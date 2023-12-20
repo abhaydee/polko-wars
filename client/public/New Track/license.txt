@@ -1,0 +1,11 @@
+Model Information:
+* title:	Stratos cornering
+* source:	https://sketchfab.com/3d-models/stratos-cornering-022c5d679e94408fb4dab6bf45a1d5c2
+* author:	angelo raffaele catalano (https://sketchfab.com/angeloraffaelecatalano)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Stratos cornering" (https://sketchfab.com/3d-models/stratos-cornering-022c5d679e94408fb4dab6bf45a1d5c2) by angelo raffaele catalano (https://sketchfab.com/angeloraffaelecatalano) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
