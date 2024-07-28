@@ -41,6 +41,10 @@ Moonbeam Network Parachain
 Crust Decentralized Storage Parachain
 Thirdweb for smart contract deployment
 
+## Unique Network Collections Data 
+
+https://uniquescan.io/opal/collections/3286 
+
 ## Smart Contract Deployment
 
 Our smart contracts are deployed on the Moonbeam network. You can check out the deployment here:
