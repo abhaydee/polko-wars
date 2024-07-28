@@ -1,122 +1,19 @@
-// import {
-//   Environment,
-//   Html,
-//   OrbitControls,
-//   PerspectiveCamera,
-// } from "@react-three/drei";
-// import { Suspense, useEffect, useState, useRef } from "react";
-// import { Car } from "./Car";
-// import { Ground } from "./Ground";
-// import { Track } from "./Track";
-// import { useMemo } from "react";
-// import { Coin } from "./Coin";
-// import "./index.css";
-// import { Perf } from "r3f-perf";
-
-
-// export function Scene() {
-
-//   const [thirdPerson, setThirdPerson] = useState(false);
-//   const [cameraPosition, setCameraPosition] = useState([-6, 3.9, 6.21]);
-//   const [points, setPoints] = useState(0); // Initialize points state
-//   const [coins, setCoins] = useState([
-//     [-4.5, 0.09, 2],
-//     [-4.5, 0.09, 0],
-//     [0.5, 0.09, -0.1],
-//     [-5.5, 0.09, 3],
-//     [-2.5, 0.09, -4],
-//     [2.5, 0.09, -4],
-//     [1.5, 0.09, 2],
-//     [-6.5, 0.09, -4],
-//     [-1, 0.6,0],
-//     [-1.5, 0.09, 1.9],
-//     [-5.3, 0.09, 1],
-
-//   ]);
-
-//   // Function to handle picking up a coin
-//   const handlePickup = (index) => {
-//     // Update the points and remove the picked-up coin
-//     setPoints(points + 1);
-//     const updatedCoins = [...coins];
-//     updatedCoins.splice(index, 1);
-//     setCoins(updatedCoins);
-//     // console.log("inside function")
-//     // Check if the player has collected enough coins
-    
-//   };
-
-  
-
-//   useEffect(() => {
-//     function keydownHandler(e) {
-//       if (e.key === "k") {
-//         // random is necessary to trigger a state change
-//         if (thirdPerson)
-//           setCameraPosition([-6, 4.9, 6.21 + Math.random() * 0.01]);
-//         setThirdPerson(!thirdPerson);
-//       }
-//     }
-
-//     window.addEventListener("keydown", keydownHandler);
-//     return () => window.removeEventListener("keydown", keydownHandler);
-//   }, [thirdPerson]);
-
-
-
-//   return (
-//     <Suspense fallback={null}>
-//       <Perf />
-//       <Environment
-//         files={process.env.PUBLIC_URL + "/textures/envmap.hdr"}
-//         background={"both"}
-//       />
-
-//       <PerspectiveCamera makeDefault position={cameraPosition} fov={40} />
-//       {!thirdPerson && <OrbitControls target={[-2.64, -0.71, 0.03]} />}
-
-//       <Ground />
-//       <Track />
- 
-//       <Car thirdPerson={thirdPerson} />
-
-//       <Html>
-//         <div className="points-display">Coins: {points}</div>
-//       </Html>
-
-
-//       {coins.map((position, index) => (
-//         <Coin
-//           key={index}
-//           position={position}
-//           onPickup={() => handlePickup(index)}
-//           // Pass the car ref to the Coin component
-//         />
-//       ))}
-//     </Suspense>
-//   );
-// }
-
-
 import {
   Environment,
-  Html,
   OrbitControls,
   PerspectiveCamera,
 } from "@react-three/drei";
-import { Suspense, useEffect, useState, useRef,useReducer } from "react";
+import { Suspense, useEffect, useState, useRef, useReducer } from "react";
 import { Car } from "./Car";
 import { Ground } from "./Ground";
 import { Track } from "./Track";
-import { useMemo } from "react";
 import { Coin } from "./Coin";
 import "./index.css";
 import { Perf } from "r3f-perf";
-import { useFrame } from "@react-three/fiber";
-import { FinishLine } from "./FinishLine";
-import { StartLine } from "./StartLine";
 import { useNavigate } from 'react-router-dom';
 import Billboards from "./Billboards";
+import { FinishLine } from "./FinishLine";
+import { StartLine } from "./StartLine";
 
 // Reducer function to handle user inputs
 const userInputReducer = (state, action) => {
@@ -129,25 +26,21 @@ const userInputReducer = (state, action) => {
   }
 };
 
-
-export function Scene() {
-
+export function Scene({ onFinishLinePickup, onPickup, setGameStarted }) {
   const [thirdPerson, setThirdPerson] = useState(false);
   const [cameraPosition, setCameraPosition] = useState([-6, 3.9, 6.21]);
-  const [points, setPoints] = useState(0); // Initialize points state
+  const [points, setPoints] = useState(0);
   const [coins, setCoins] = useState([
-    [0.5, 0.09, -0.1],//2
-    [0.5, 0.09, -0.1],//2
+    [0.5, 0.09, -0.1], // 2
+    [0.5, 0.09, -0.1], // 2
     [-4.5, 0.09, 0], // 4
     [-4.5, 0.09, 0], // 4
-    [-5.3, 0.09, 1],// 5
-    [-5.3, 0.09, 1],// 5
+    [-5.3, 0.09, 1], // 5
+    [-5.3, 0.09, 1], // 5
     [-4.5, 0.09, 1.5], // 6
     [-4.5, 0.09, 1.5], // 6
     [-1.5, 0.09, 1.9], // 7
     [-1.5, 0.09, 1.9], // 7
-    [-1, 0.6,0], // Ramp
-    [-1, 0.6,0], // Ramp
     [-5.5, 0.09, 3], // OOT bottom left
     [-5.5, 0.09, 3], // OOT bottom left
     [-2.5, 0.09, -4], // OOT behind the stairs
@@ -156,28 +49,32 @@ export function Scene() {
     [2.5, 0.09, -4], // OOT top Right
     [-6.5, 0.09, -4], // OOT Top Left
     [-6.5, 0.09, -4], // OOT Top Left
+    [-1, 0.6, 0], // Ramp
+    [-1, 0.6, 0], // Ramp
   ]);
   const [userInputs, dispatch] = useReducer(userInputReducer, []);
-  const frameCountRef = useRef(0); // Use ref to store the frame count
+  const frameCountRef = useRef(0);
   const [startLineVisible, setStartLineVisible] = useState(true);
   const [finishLineVisible, setFinishLineVisible] = useState(true);
   const [currentCoinIndex, setCurrentCoinIndex] = useState(0);
   const [finishLineFrame, setFinishLineFrame] = useState(null);
+  const [imageDownloaded, setImageDownloaded] = useState(false);
   const navigate = useNavigate();
-
 
   // Function to handle picking up a coin
   const handlePickup = (index) => {
-    if(index == currentCoinIndex) {
-    // Update the points and remove the picked-up coin
-    setPoints(points + 1);
-    const updatedCoins = [...coins];
-    updatedCoins.splice(index, 1);
-    setCoins(updatedCoins);
-    // console.log("inside function")
-
-    // Show the next collectible coin
-    setCurrentCoinIndex(currentCoinIndex + 1);
+    if (index === currentCoinIndex) {
+      // Update the points and remove the picked-up coin
+      setPoints((prevPoints) => {
+        const newPoints = prevPoints + 1;
+        onPickup(newPoints); // Update points in parent component
+        return newPoints;
+      });
+      const updatedCoins = [...coins];
+      updatedCoins.splice(index, 1);
+      setCoins(updatedCoins);
+      // Show the next collectible coin
+      setCurrentCoinIndex(currentCoinIndex + 1);
     }
   };
 
@@ -185,11 +82,12 @@ export function Scene() {
   const handleStartLinePickup = () => {
     // Update the visibility of the start line when it's picked up
     setStartLineVisible(false);
+    setGameStarted(true); // Start the game
   };
 
-  // Function to handle the start line pickup
-  const handleFinishLinePickup = () => {
-    // Update the visibility of the start line when it's picked up
+  // Function to handle the finish line pickup
+  const handleFinishLinePickupInternal = () => {
+    // Update the visibility of the finish line when it's picked up
     setFinishLineVisible(false);
 
     // Set the frame number when the finish line is crossed
@@ -204,6 +102,11 @@ export function Scene() {
         finishLineFrame: frameCountRef.current, // Pass the frame number
       },
     });
+
+    if (onFinishLinePickup && !imageDownloaded) {
+      onFinishLinePickup();
+      setImageDownloaded(true); // Mark image as downloaded
+    }
   };
 
   const handleKeyDown = (e) => {
@@ -225,7 +128,6 @@ export function Scene() {
       if (e.key === "k") {
         if (thirdPerson) {
           setCameraPosition([-6, 4.9, 6.21 + Math.random() * 0.01]);
-          
         }
         setThirdPerson(!thirdPerson);
       }
@@ -251,16 +153,8 @@ export function Scene() {
     };
   }, [thirdPerson, userInputs]);
 
-  
- 
-
-  // useFrame(() => {
-  //   frameCountRef.current += 1;
-  // });
-
   const targetFrameRate = 30; // Set your desired frame rate (60fps)
   let previousTimestamp = 0;
-
 
   function animate(timestamp) {
     const deltaTime = timestamp - previousTimestamp;
@@ -268,8 +162,7 @@ export function Scene() {
 
     if (deltaTime >= targetFrameInterval) {
       previousTimestamp = timestamp;
-
-       frameCountRef.current += 1;
+      frameCountRef.current += 1;
     }
 
     requestAnimationFrame(animate);
@@ -282,10 +175,9 @@ export function Scene() {
     startAnimation();
   }, []);
 
-
   return (
     <Suspense fallback={null}>
-      <Perf/>
+      
       <Environment
         files={process.env.PUBLIC_URL + "/textures/stadium.hdr"}
         background={"both"}
@@ -296,17 +188,12 @@ export function Scene() {
 
       <Ground />
       <Track />
-      {  (!startLineVisible) && (points >=3 ) && <FinishLine scale={0.1} position={[-1,0.7,0]} rotation-y={Math.PI} onPickup={handleFinishLinePickup} />}
-      <StartLine scale={0.003} position={[-1,0,-1]} onPickup={handleStartLinePickup} />
- 
+      {(!startLineVisible) && (points >= 3) && <FinishLine scale={0.1} position={[-1, 0.7, 0]} rotation-y={Math.PI} onPickup={handleFinishLinePickupInternal} />}
+      <StartLine scale={0.003} position={[-1, 0, -1]} onPickup={handleStartLinePickup} />
+
       <Car thirdPerson={thirdPerson} />
 
-      <Html>
-        <div className="points-display">Coins: {points}</div>
-      </Html>
-
-      <Billboards/>
-
+      <Billboards />
 
       {coins.map((position, index) => (
         <Coin
@@ -320,5 +207,3 @@ export function Scene() {
     </Suspense>
   );
 }
-
-

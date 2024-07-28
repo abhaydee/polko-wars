@@ -10,6 +10,7 @@ import { ConnectButton, useActiveAccount } from "thirdweb/react";
 import { prepareContractCall, getContract } from "thirdweb";
 import { useSendTransaction } from "thirdweb/react";
 import { client } from "./client";
+import { defineChain } from "thirdweb";
 import { createWallet, inAppWallet } from "thirdweb/wallets";
 import { NFT_CONTRACT_ADDRESS, TOKEN_CONTRACT_ADDRESS } from './constants/addresses';
 
@@ -26,6 +27,13 @@ const wallets = [
   createWallet("io.metamask"),
 ];
 
+const myChain = defineChain({
+  id: 1287,
+  rpc: "https://1287.rpc.thirdweb.com/",
+  
+})
+
+
 const LeaderBoard = () => {
   const location = useLocation();
   const { state } = location;
@@ -40,8 +48,9 @@ const LeaderBoard = () => {
   const tokenContract = getContract({
     client,
     address: TOKEN_CONTRACT_ADDRESS,
-    chainId: 1, // Replace with the appropriate chain ID
+    chain: myChain , // Replace with the appropriate chain ID
   });
+  console.log(tokenContract)
 
   useEffect(() => {
     getLeaderboardDataFromFirestore();
@@ -94,8 +103,8 @@ const LeaderBoard = () => {
   const handleERC20 = async () => {
     const transaction = prepareContractCall({
       contract: tokenContract,
-      method: "mintTo",
-      params: [address, 1000], // Adjust the amount as needed
+      method: "function mintTo(address to, uint256 amount)",
+      params: [address, 10], // Adjust the amount as needed
     });
     sendTransaction(transaction);
   };

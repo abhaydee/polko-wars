@@ -100,18 +100,18 @@ const Home = () => {
             wallets={wallets}
           />
           <Button onClick={openModal}>Rules</Button>
-          {address && (
+          {/* {address && (
             <Button>
             <Link to="/leaderBoard" style={{ textDecoration: 'none', color: '#fff' }}>LeaderBoard</Link>
           </Button>
          
-          )}
+          )} */}
 
-          {address && (
+          {/* {address && (
           <Button>
             <Link to="/profile" style={{ textDecoration: 'none', color: '#fff' }}>Profile</Link>
           </Button>
-          )}
+          )} */}
           
           {address && (
           <Button>
