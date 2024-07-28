@@ -72,9 +72,6 @@ const Marketplace = () => {
   
   console.log(address);
 
-  const handleCardClick = () => {
-      navigate('/lobby');
-  };
 
   const mintNFT = async (tokenId) => {
     if (!address) {
@@ -93,6 +90,7 @@ const Marketplace = () => {
         to: address,
       });
       console.log(`NFT with ID ${tokenId} from collection ${collectionId} transferred to ${address}`);
+      navigate('/lobby');
     } catch (error) {
       console.error("Error transferring NFT:", error);
     }
@@ -119,19 +117,19 @@ const Marketplace = () => {
         </Button>
       )}
       <CardContainer>
-        <Card onClick={handleCardClick}>
+        <Card>
           <CarImage src="/car1.webp" alt="Car 1" />
           <h3>Car 1</h3>
           <p>Description of Car 1.</p>
           <Button onClick={() => mintNFT(1)}>Mint Car 1</Button>
         </Card>
-        <Card onClick={handleCardClick}>
+        <Card >
           <CarImage src="/car2.webp" alt="Car 2" />
           <h3>Car 2</h3>
           <p>Description of Car 2.</p>
           <Button onClick={() => mintNFT(2)}>Mint Car 2</Button>
         </Card>
-        <Card onClick={handleCardClick}>
+        <Card >
           <CarImage src="/car3.webp" alt="Car 3" />
           <h3>Car 3</h3>
           <p>Description of Car 3.</p>
