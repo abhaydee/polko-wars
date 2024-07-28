@@ -1,7 +1,22 @@
 import React from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
-import { ConnectWallet, useAddress } from '@thirdweb-dev/react';
+import { ConnectButton, useActiveAccount } from "thirdweb/react";
+import { client } from "./client";
+import { createWallet, inAppWallet } from "thirdweb/wallets";
+
+const wallets = [
+  inAppWallet({
+    auth: {
+      options: [
+        "email",
+        "google",
+        "phone",
+      ],
+    },
+  }),
+  createWallet("io.metamask"),
+];
 
 const Container = styled.div`
   display: flex;
@@ -36,14 +51,28 @@ const Title = styled.h3`
 
 const LobbyPage = () => {
     const navigate = useNavigate();
-    const address = useAddress()
+    const activeAccount = useActiveAccount();
+  const address = activeAccount?.address
+  console.log(address)
 
     const handleF2P = () => {
         navigate('/play-me');
     };
   return (
     <Container>
-    <ConnectWallet/>
+    <ConnectButton
+            theme={"light"}
+            btnTitle={"Login"}
+            modalTitle={"Select a Wallet"}
+            modalSize={"compact"}
+            modalTitleIconUrl={""}
+            dropdownPosition={{
+              side: "left",
+              align: "end",
+            }}
+            client={client}
+            wallets={wallets}
+      />
       <h2>Lobby</h2>
       <CardContainer>
         <Card onClick={handleF2P}>

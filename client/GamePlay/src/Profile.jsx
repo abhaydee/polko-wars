@@ -2,8 +2,22 @@ import React from 'react'
 import Home from './Home'
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
-import { ConnectWallet, ThirdwebNftMedia,  Web3Button,  useAddress, useContract, useNFT, useOwnedNFTs, useTokenBalance } from '@thirdweb-dev/react';
+import { ConnectButton, useActiveAccount } from "thirdweb/react";
+import { client } from "./client";
+import { createWallet, inAppWallet } from "thirdweb/wallets";
 
+const wallets = [
+  inAppWallet({
+    auth: {
+      options: [
+        "email",
+        "google",
+        "phone",
+      ],
+    },
+  }),
+  createWallet("io.metamask"),
+];
 
 const CardContainer = styled.div`
   display: flex;
@@ -32,11 +46,24 @@ const Button = styled.button`
   margin: 1rem
 `;
 const Profile = () => {
-    const address = useAddress()
-    console.log(address)
+  const activeAccount = useActiveAccount();
+  const address = activeAccount?.address
+  console.log(address)
   return (
     <div>
-      <ConnectWallet/>
+     <ConnectButton
+            theme={"light"}
+            btnTitle={"Login"}
+            modalTitle={"Select a Wallet"}
+            modalSize={"compact"}
+            modalTitleIconUrl={""}
+            dropdownPosition={{
+              side: "left",
+              align: "end",
+            }}
+            client={client}
+            wallets={wallets}
+      />
       {address && (
             <Button > <Link to="/" style={{ textDecoration: 'none'}} >Back</Link> </Button>
           )}

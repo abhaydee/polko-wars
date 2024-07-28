@@ -2,7 +2,22 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
-import { ConnectWallet, useAddress } from '@thirdweb-dev/react';
+import { ConnectButton, useActiveAccount } from "thirdweb/react";
+import { client } from "./client";
+import { createWallet, inAppWallet } from "thirdweb/wallets";
+
+const wallets = [
+  inAppWallet({
+    auth: {
+      options: [
+        "email",
+        "google",
+        "phone",
+      ],
+    },
+  }),
+  createWallet("io.metamask"),
+];
 
 const Container = styled.div`
   display: flex;
@@ -47,9 +62,11 @@ const Button = styled.button`
 `;
 
 const Marketplace = () => {
-    const address = useAddress();
-    const navigate = useNavigate();
-    console.log(address);
+  const activeAccount = useActiveAccount();
+  const address = activeAccount?.address
+  console.log(address)
+  const navigate = useNavigate();
+  
 
     const handleCardClick = () => {
         navigate('/lobby');
@@ -57,7 +74,19 @@ const Marketplace = () => {
 
     return (
         <Container>
-            <ConnectWallet />
+            <ConnectButton
+            theme={"light"}
+            btnTitle={"Login"}
+            modalTitle={"Select a Wallet"}
+            modalSize={"compact"}
+            modalTitleIconUrl={""}
+            dropdownPosition={{
+              side: "left",
+              align: "end",
+            }}
+            client={client}
+            wallets={wallets}
+      />
             {address && (
                 <Button>
                     <Link to="/" style={{ textDecoration: 'none', color: '#fff' }}>Back</Link>

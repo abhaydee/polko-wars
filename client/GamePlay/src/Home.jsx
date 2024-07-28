@@ -1,14 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import styled from 'styled-components';
 import { Link } from 'react-router-dom';
-import Modal from 'react-modal'; // Import the Modal component
-import {NFT_CONTRACT_ADDRESS,TOKEN_CONTRACT_ADDRESS} from './constants/addresses'
+import Modal from 'react-modal';
+import { NFT_CONTRACT_ADDRESS, TOKEN_CONTRACT_ADDRESS } from './constants/addresses';
+import backgroundImage from './Assests/fbg.jpeg';
+import LeaderBoard from './LeaderBoard';
+import { client } from "./client";
+import { ConnectButton, useActiveAccount } from "thirdweb/react";
+import { ConnectEmbed } from "thirdweb/react";
+import { createWallet, inAppWallet } from "thirdweb/wallets";
 
-// Import background image
-import backgroundImage from './Assests/fbg.jpeg'; // Replace with your image file
-import { ConnectWallet, ThirdwebNftMedia,  Web3Button,  useAddress, useContract, useNFT, useOwnedNFTs, useTokenBalance } from '@thirdweb-dev/react';
-import LeaderBoard from './LeaderBoard'
-
+const wallets = [
+  inAppWallet({
+    auth: {
+      options: [
+        "email",
+        "google",
+        "phone",
+      ],
+    },
+  }),
+  createWallet("io.metamask"),
+];
 
 // Styled components for styling
 const HomeContainer = styled.div`
@@ -45,11 +58,16 @@ const Button = styled.button`
   border-radius: 4px;
   padding: 10px 20px;
   cursor: pointer;
-  margin: 1rem
+  margin: 1rem;
 `;
 
 const Home = () => {
   const [modalIsOpen, setModalIsOpen] = useState(false);
+  const activeAccount = useActiveAccount();
+  const address = activeAccount?.address
+  console.log(address)
+
+
   const openModal = () => {
     setModalIsOpen(true);
   };
@@ -58,88 +76,49 @@ const Home = () => {
     setModalIsOpen(false);
   };
 
-  const [tokenBalanceDisplay, setTokenBalanceDisplay] = useState("0")
-  const [ userLoggedIn, setUserLoggedIn] = useState(false)
-  
-  const address = useAddress()
-  console.log(address)
-
-  const {contract: nftContract} = useContract(NFT_CONTRACT_ADDRESS)
-  const {contract: tokenContract} = useContract(TOKEN_CONTRACT_ADDRESS)
-  
-
-  const {
-    data: ownedNFTs,
-    isLoading: isLoadingOwnedNFTs,
-  } = useOwnedNFTs(nftContract, address)
-  
-
-  const {
-    data: tokenBalance,
-    isLoading: isLoadingTokenBalance
-  } = useTokenBalance(tokenContract, address)
-
-  const {
-    data: nft,
-    isLoading: isLoadingNFT
-  } = useNFT(nftContract, 0)
-
   useEffect(() => {
-    if(!address) return
-    if(!tokenContract) return
-
-    const interval = setInterval(async() => {
-      const tokenBalance = await tokenContract.erc20.balanceOf(address)
-      setTokenBalanceDisplay(tokenBalance.displayValue)
-    }, 5000)
-
-    setUserLoggedIn(true)
-    
-
-
-  },[address, userLoggedIn])
-
-  
-
-  
+    if (activeAccount?.address) {
+      console.log("Active account address:", activeAccount.address);
+    }
+  }, [activeAccount]);
 
   return (
     <HomeContainer>
       <CardContainer>
         <Card>
-
-        <ConnectWallet 
+          <ConnectButton
             theme={"light"}
             btnTitle={"Login"}
             modalTitle={"Select a Wallet"}
             modalSize={"compact"}
-            modalTitleIconUrl={""} 
+            modalTitleIconUrl={""}
             dropdownPosition={{
-              side: "left", //  "top" | "bottom" | "left" | "right";
-              align: "end", // "start" | "center" | "end";
+              side: "left",
+              align: "end",
             }}
+            client={client}
+            wallets={wallets}
           />
-
-        
-            
-          
-            
-          
-          
-
-          
-         
-          
           <Button onClick={openModal}>Rules</Button>
           {address && (
-            <Button > <Link to="/leaderBoard" style={{ textDecoration: 'none'}} >LeaderBoard</Link> </Button>
+            <Button>
+            <Link to="/leaderBoard" style={{ textDecoration: 'none', color: '#fff' }}>LeaderBoard</Link>
+          </Button>
+         
           )}
+
           {address && (
-            <Button > <Link to="/profile" style={{ textDecoration: 'none'}} >Profile</Link> </Button>
+          <Button>
+            <Link to="/profile" style={{ textDecoration: 'none', color: '#fff' }}>Profile</Link>
+          </Button>
           )}
+          
           {address && (
-            <Button > <Link to="/marketplace" style={{ textDecoration: 'none'}} >Marketplace</Link> </Button>
+          <Button>
+            <Link to="/marketplace" style={{ textDecoration: 'none', color: '#fff' }}>Marketplace</Link>
+          </Button>
           )}
+          
           
           <Modal
             isOpen={modalIsOpen}
@@ -161,8 +140,8 @@ const Home = () => {
               },
             }}
           >
-          <h2 style={{ marginBottom: '20px', fontFamily: 'cursive', color: '#333', textAlign:'center' }}>Game Rules</h2>
-            <ul style={{ listStyle: 'none', padding: 0  }}>
+            <h2 style={{ marginBottom: '20px', fontFamily: 'cursive', color: '#333', textAlign: 'center' }}>Game Rules</h2>
+            <ul style={{ listStyle: 'none', padding: 0 }}>
               <li style={{ marginBottom: '10px' }}>
                 <span style={{ fontWeight: 'bold' }}>-</span> Use WASD keys for controlling the car
               </li>
@@ -188,9 +167,8 @@ const Home = () => {
                 <span style={{ fontWeight: 'bold' }}>-</span> 3, 2, 1, Race...
               </li>
             </ul>
-            <Button onClick={closeModal} style={{ marginTop: '20px', marginLeft:'150px'}}>I'm Ready</Button>
+            <Button onClick={closeModal} style={{ marginTop: '20px', marginLeft: '150px' }}>I'm Ready</Button>
           </Modal>
-
         </Card>
       </CardContainer>
     </HomeContainer>
