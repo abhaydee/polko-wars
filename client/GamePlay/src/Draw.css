@@ -1,0 +1,15 @@
+.whiteSpace {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 20rem; /* Occupy the full width of the container */
+    height: 12rem; /* Occupy the full height of the container */
+    background-color: ivory;
+  }
+  
+  canvas {
+    width: 100%; /* Occupy the full width of the container */
+    height: 100%; /* Occupy the full height of the container */
+    display: block; /* Remove any extra space around the canvas */
+  }
+  

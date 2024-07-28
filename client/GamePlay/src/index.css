@@ -1,0 +1,68 @@
+body, html, #root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.controls {
+  position: absolute;
+  bottom: 0px;
+  right: 0px;
+  background: black;
+  opacity: 0.5;
+  color: white;
+  padding: 5px;
+}
+
+.whiteSpace {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 20rem; /* Adjust the width as needed */
+  height: 12rem; /* Adjust the height as needed */
+  background-color: ivory;
+}
+
+p {
+  margin: 5px;
+  font-family: monospace;
+  font-size: 12px;
+  letter-spacing: 0.75px;
+}
+
+.points-display {
+  position: absolute;
+  top: -100px; /* Adjust the top position as needed */
+  left: -700px; /* Adjust the right position as needed */
+  font-size: 24px;
+  font-weight: bold;
+  color: yellow;
+  text-shadow: 2px 2px 2px black;
+}
+
+.label > div
+{
+    font-family: Helvetica, Arial;
+    position: absolute;
+    background: #00000088;
+    color: white;
+    padding: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    border-radius: 30px;
+    user-select: none;
+}
+
+
+.focus-button {
+  font-family: Helvetica, Arial;
+    position: absolute;
+    background: #00000088;
+    color: white;
+    padding: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    border-radius: 30px;
+    user-select: none;
+}
