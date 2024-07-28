@@ -1,27 +1,28 @@
 import { useEffect, useState } from "react";
+import { toast } from 'react-toastify';
 
 export const useControls = (vehicleApi, chassisApi) => {
-  let [controls, setControls] = useState({ });
+  let [controls, setControls] = useState({});
 
   useEffect(() => {
     const keyDownPressHandler = (e) => {
       setControls((controls) => ({ ...controls, [e.key.toLowerCase()]: true }));
-    }
+    };
 
     const keyUpPressHandler = (e) => {
       setControls((controls) => ({ ...controls, [e.key.toLowerCase()]: false }));
-    }
-  
+    };
+
     window.addEventListener("keydown", keyDownPressHandler);
     window.addEventListener("keyup", keyUpPressHandler);
     return () => {
       window.removeEventListener("keydown", keyDownPressHandler);
       window.removeEventListener("keyup", keyUpPressHandler);
-    }
+    };
   }, []);
 
   useEffect(() => {
-    if(!vehicleApi || !chassisApi) return;
+    if (!vehicleApi || !chassisApi) return;
 
     if (controls.w) {
       vehicleApi.applyEngineForce(150, 2);
@@ -45,14 +46,14 @@ export const useControls = (vehicleApi, chassisApi) => {
       vehicleApi.setSteeringValue(0.1, 0);
       vehicleApi.setSteeringValue(0.1, 1);
     } else {
-      for(let i = 0; i < 4; i++) {
+      for (let i = 0; i < 4; i++) {
         vehicleApi.setSteeringValue(0, i);
       }
     }
 
-    if (controls.arrowdown)  chassisApi.applyLocalImpulse([0, -5, 0], [0, 0, +1]);
-    if (controls.arrowup)    chassisApi.applyLocalImpulse([0, -5, 0], [0, 0, -1]);
-    if (controls.arrowleft)  chassisApi.applyLocalImpulse([0, -5, 0], [-0.5, 0, 0]);
+    if (controls.arrowdown) chassisApi.applyLocalImpulse([0, -5, 0], [0, 0, +1]);
+    if (controls.arrowup) chassisApi.applyLocalImpulse([0, -5, 0], [0, 0, -1]);
+    if (controls.arrowleft) chassisApi.applyLocalImpulse([0, -5, 0], [-0.5, 0, 0]);
     if (controls.arrowright) chassisApi.applyLocalImpulse([0, -5, 0], [+0.5, 0, 0]);
 
     if (controls.r) {
@@ -65,6 +66,18 @@ export const useControls = (vehicleApi, chassisApi) => {
     // Stop the car when the "m" key is pressed
     if (controls.m) {
       chassisApi.velocity.set(0, 0, 0);
+    }
+
+    // Nitro boost when "q" is pressed
+    if (controls.q) {
+      toast.info('Nitro boost activated!');
+      const boostForce = 50;
+      vehicleApi.applyEngineForce(boostForce, 2);
+      vehicleApi.applyEngineForce(boostForce, 3);
+      setTimeout(() => {
+        vehicleApi.applyEngineForce(150, 2);
+        vehicleApi.applyEngineForce(150, 3);
+      }, 5000); // Nitro boost lasts for 5 seconds
     }
   }, [controls, vehicleApi, chassisApi]);
 

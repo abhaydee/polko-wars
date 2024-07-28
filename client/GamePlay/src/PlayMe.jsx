@@ -6,10 +6,31 @@ import Draw from "./Draw";
 import { CarPositionProvider } from "./CarPositionContext";
 import { Perf } from "r3f-perf";
 import styled from "styled-components";
+import { ToastContainer, toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { client } from "./client";
+import { ConnectButton, useActiveAccount, useWalletBalance, useSendTransaction } from "thirdweb/react";
+import { prepareContractCall, getContract, defineChain } from "thirdweb";
+import { ConnectEmbed } from "thirdweb/react";
+import { createWallet, inAppWallet } from "thirdweb/wallets";
+
+const wallets = [
+  inAppWallet({
+    auth: {
+      options: [
+        "email",
+        "google",
+        "phone",
+      ],
+    },
+  }),
+  createWallet("io.metamask"),
+];
+
 
 const Container = styled.div`
   position: relative;
-   width: 100vw;
+  width: 100vw;
   height: 100vh;
   overflow: hidden;
 `;
@@ -39,13 +60,16 @@ const PlayMe = ({ importedData }) => {
   const [points, setPoints] = useState(0);
   const [timer, setTimer] = useState(60);
   const [gameStarted, setGameStarted] = useState(false);
+  const activeAccount = useActiveAccount();
+  const address = activeAccount?.address
+  console.log(address)
 
   const handleFinishLinePickup = (exportCallback) => {
     drawRef.current = exportCallback;
   };
 
   const handlePickup = (newPoints) => {
-    setPoints(newPoints/2);
+    setPoints(newPoints / 2);
   };
 
   useEffect(() => {
@@ -58,15 +82,55 @@ const PlayMe = ({ importedData }) => {
     }
   }, [gameStarted, timer]);
 
+  const notify = (message) => {
+    toast.info(message, {
+      position: "top-right",
+      autoClose: 5000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+      progress: undefined,
+    });
+  };
+
+  useEffect(() => {
+    if (timer === 0) {
+      notify("Time's up! The game will restart.");
+      setGameStarted(false);
+      setTimeout(() => {
+        setTimer(60);
+        setPoints(0);
+        setGameStarted(true);
+      }, 5000);
+    }
+  }, [timer]);
+
   return (
     <CarPositionProvider>
+      <Overlay><ConnectButton
+            theme={"light"}
+            btnTitle={"Login"}
+            modalTitle={"Select a Wallet"}
+            modalSize={"compact"}
+            modalTitleIconUrl={""}
+            dropdownPosition={{
+              side: "left",
+              align: "end",
+            }}
+            client={client}
+            wallets={wallets}
+          />
+      </Overlay>
       <Container>
+      
         <Canvas>
           <Physics broadphase="SAP" gravity={[0, -2.6, 0]}>
             <Scene
               onFinishLinePickup={() => drawRef.current()}
               onPickup={handlePickup}
               setGameStarted={setGameStarted}
+              notify={notify}
             />
           </Physics>
         </Canvas>
@@ -82,6 +146,7 @@ const PlayMe = ({ importedData }) => {
 
         <Overlay>Time left: {timer}s</Overlay>
         <PointsDisplay>Coins: {points}</PointsDisplay>
+        <ToastContainer />
       </Container>
     </CarPositionProvider>
   );
