@@ -10,7 +10,7 @@ export function Coin({ position, onPickup, index, currentCoinIndex }) {
   const { carPosition } = useCarPosition();
 
 // Load the coin texture using a TextureLoader
-const coinTexture = useLoader(TextureLoader, './textures/ape.png');
+const coinTexture = useLoader(TextureLoader, './textures/polko1.png');
 
 
 useFrame((state,delta) => {

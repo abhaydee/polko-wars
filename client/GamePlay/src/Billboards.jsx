@@ -4,11 +4,11 @@ import { DoubleSide, TextureLoader } from 'three';
 
 
 const Billboards = () => {
-    const texture1 = useLoader(TextureLoader, './textures/polygon.png');
-    const texture2 = useLoader(TextureLoader, './textures/mantle.jpeg');
-    const zkTexture = useLoader(TextureLoader, './textures/zkevm.png' )
-    const apeTexture = useLoader(TextureLoader, './textures/ape.png' )
-    const scrollTexture = useLoader(TextureLoader, './textures/scroll.png' )
+    const texture1 = useLoader(TextureLoader, './textures/GLMR.png');
+    const texture2 = useLoader(TextureLoader, './textures/EASYA.png');
+    const zkTexture = useLoader(TextureLoader, './textures/GLMR.png' )
+    const apeTexture = useLoader(TextureLoader, './textures/polko1.png' )
+    const scrollTexture = useLoader(TextureLoader, './textures/unique.png' )
   return (
     <>
     <group position={[0,0,3]} scale={0.2} >
