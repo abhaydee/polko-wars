@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import './leaderBoard.css';
 import { Link } from 'react-router-dom';
+import trophyImage from './Assests/winner.png';
 import { collection, getDocs, addDoc } from "firebase/firestore";
 import moment from 'moment-timezone';
 import { db } from './config/firestore.js';
@@ -33,13 +34,13 @@ const LeaderBoard = () => {
   const [winnerClaimed, setWinnerClaimed] = useState(true);
   const activeAccount = useActiveAccount();
   const address = activeAccount?.address;
-  const { mutate: sendTransaction, data: transactionData, error: transactionError } = useSendTransaction();
+  const { mutate: sendTransaction } = useSendTransaction();
   const [isProfileOpen, setProfileOpen] = useState(false);
 
   const tokenContract = getContract({
     client,
     address: TOKEN_CONTRACT_ADDRESS,
-    chainId: 1287, // Replace with the appropriate chain ID
+    chainId: 1, // Replace with the appropriate chain ID
   });
 
   useEffect(() => {
@@ -91,23 +92,12 @@ const LeaderBoard = () => {
   }, [address, isDataAdded, state, leaderBoardData]);
 
   const handleERC20 = async () => {
-    try {
-      const transaction = prepareContractCall({
-        contract: tokenContract,
-        method: "mintTo",
-        params: [address, 1000], // Adjust the amount as needed
-      });
-      sendTransaction(transaction, {
-        onSuccess: (tx) => {
-          console.log('Transaction Successful:', tx);
-        },
-        onError: (error) => {
-          console.error('Transaction Error:', error);
-        },
-      });
-    } catch (error) {
-      console.error('Error preparing transaction:', error);
-    }
+    const transaction = prepareContractCall({
+      contract: tokenContract,
+      method: "mintTo",
+      params: [address, 1000], // Adjust the amount as needed
+    });
+    sendTransaction(transaction);
   };
 
   return (
@@ -148,7 +138,18 @@ const LeaderBoard = () => {
         {winnerClaimed ? (
           <>
             <p>Winner Can Claim</p>
-           
+            {address && leaderBoardData.length > 0 && leaderBoardData[0].Wallet_Address === address && (
+              <button
+                contractAddress={NFT_CONTRACT_ADDRESS}
+                action={(contract) => contract.erc721.claim(1)}
+                onSuccess={() => {
+                  alert("NFT claimed");
+                  setWinnerClaimed(false);
+                }}
+              >
+                Claim NFT
+              </button>
+            )}
           </>
         ) : (
           <h1 style={{ textAlign: 'center', width: '100%', margin: '0 auto !important' }}>Winner Claimed the NFT</h1>
