@@ -1,13 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { ConnectButton, useActiveAccount } from "thirdweb/react";
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import { client } from "./client";
 import { createWallet, inAppWallet } from "thirdweb/wallets";
-import { ApiPromise, WsProvider } from '@polkadot/api';
-import { Keyring } from '@polkadot/keyring';
-import { MetamaskProvider } from '@unique-nft/accounts/metamask';
 import { connectSdk } from "./utils/connect-sdk.js";
 
 const wallets = [
@@ -72,32 +70,33 @@ const Marketplace = () => {
   
   console.log(address);
 
-
   const mintNFT = async (tokenId) => {
     if (!address) {
-      alert('Please connect your wallet first.');
+      toast.error('Please connect your wallet first.');
       return;
     }
 
     const { sdk } = await connectSdk();
-
     const collectionId = 3286;
 
     try {
+      toast.info('Minting in progress...');
       await sdk.token.transfer({
         collectionId,
         tokenId,
         to: address,
       });
-      console.log(`NFT with ID ${tokenId} from collection ${collectionId} transferred to ${address}`);
+      toast.success(`NFT with ID ${tokenId} from collection ${collectionId} transferred to ${address}`);
       navigate('/lobby');
     } catch (error) {
+      toast.error("Error transferring NFT:", error.message);
       console.error("Error transferring NFT:", error);
     }
   };
 
   return (
     <Container>
+      <ToastContainer />
       <ConnectButton
         theme={"light"}
         btnTitle={"Login"}

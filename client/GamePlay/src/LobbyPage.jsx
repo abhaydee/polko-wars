@@ -58,6 +58,10 @@ const LobbyPage = () => {
     const handleF2P = () => {
         navigate('/play-me');
     };
+
+    const handleP2E = () => {
+      navigate('/stake')
+    }
   return (
     <Container>
     <ConnectButton
@@ -79,7 +83,7 @@ const LobbyPage = () => {
           <Title>FREE TO PLAY</Title>
           <p>Join and play for free!</p>
         </Card>
-        <Card>
+        <Card onClick={handleP2E}>
           <Title>PLAY TO EARN</Title>
           <p>Participate and earn rewards!</p>
         </Card>

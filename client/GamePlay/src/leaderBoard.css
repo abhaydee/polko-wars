@@ -7,10 +7,9 @@
   align-items: center;
 }
 
- .me {
+.me {
   margin-left: 1rem;
 }
-
 
 .profile-header button {
   background: none;
@@ -29,14 +28,12 @@
 }
 
 .profile-claim {
-  background-color:#065c63
+  background-color: #065c63;
 }
 
 .leaderboard-section {
-  /* Style for the leaderboard section */
   margin-top: 20px;
   padding: 20px;
-  /* Change to the color you prefer */
   border-radius: 10px;
   display: flex;
   flex-direction: column;
@@ -55,6 +52,7 @@
   text-align: center;
   color: #3b1b1b;
 }
+
 .leaderboard-table td {
   border: 1px solid #065c63;
   padding: 8px;
@@ -74,18 +72,14 @@
   background-color: #a296da;
 }
 
-/* Add this new style to highlight the user's row */
 .leaderboard-table tr.highlighted {
-  background-color: #ffcc00; /* You can use any other color you prefer */
+  background-color: #ffcc00; /* Highlight the user's row */
 }
 
 .leaderBoard-container {
-  background-image: url('./Assests/bg_leader.jpeg'); /* Replace with your image file path or URL */
-  height: 100% ;
-  
+  height: 100%;
   color: #d87f7f; /* Text color for white background */
   font-family: Arial, sans-serif;
-  
   overflow: scroll;
 }
 
@@ -113,3 +107,13 @@
   color: #311111;
 }
 
+.tw-connect-wallet {
+  background-color: #065c63;
+  color: #fff;
+  border-radius: 4px;
+  padding: 10px 20px;
+  cursor: pointer;
+  &:hover {
+    background-color: #043f4b;
+  }
+}

@@ -8,6 +8,7 @@ import LeaderBoard from "./LeaderBoard";
 import Profile from "./Profile";
 import Marketplace from "./Marketplace";
 import LobbyPage from "./LobbyPage";
+import Stake from "./Stake";
 
 const App = () => {
     const [importedData, setImportedData] = useState(null);
@@ -31,6 +32,7 @@ const App = () => {
             <Route path="/profile" element={<Profile/> } />
             <Route path="/marketplace" element={<Marketplace/> } />
             <Route path="/lobby" element={<LobbyPage/> } />
+            <Route path="/stake" element={<Stake/> } />
             
     
             {/* Pass imported data to PlayMe */}
