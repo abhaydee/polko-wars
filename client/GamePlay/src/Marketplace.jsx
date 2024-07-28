@@ -118,21 +118,27 @@ const Marketplace = () => {
       <CardContainer>
         <Card>
           <CarImage src="/car1.webp" alt="Car 1" />
-          <h3>Car 1</h3>
+          <h3>Supra</h3>
           <p>Description of Car 1.</p>
-          <Button onClick={() => mintNFT(1)}>Mint Car 1</Button>
+          <Button onClick={() => mintNFT(27)}>Mint Car 1</Button>
         </Card>
         <Card >
           <CarImage src="/car2.webp" alt="Car 2" />
-          <h3>Car 2</h3>
+          <h3>McQueen</h3>
           <p>Description of Car 2.</p>
-          <Button onClick={() => mintNFT(2)}>Mint Car 2</Button>
+          <Button onClick={() => mintNFT(30)}>Mint Car 2</Button>
         </Card>
         <Card >
           <CarImage src="/car3.webp" alt="Car 3" />
-          <h3>Car 3</h3>
+          <h3>Civic</h3>
           <p>Description of Car 3.</p>
-          <Button onClick={() => mintNFT(3)}>Mint Car 3</Button>
+          <Button onClick={() => mintNFT(31)}>Mint Car 3</Button>
+        </Card>
+        <Card >
+          <CarImage src="/car4.webp" alt="Car 3" />
+          <h3>Beast</h3>
+          <p>Description of Car 4.</p>
+          <Button onClick={() => mintNFT(32)}>Mint Car 4</Button>
         </Card>
       </CardContainer>
     </Container>

@@ -1,4 +1,4 @@
-## Polkowars: A 3D NFT Arcade Card Game on the Polkadot Network
+## Polkowars: A 3D NFT Arcade Car Game on the Polkadot Network
 
 ### Welcome to Polkowars – a 3D NFT arcade card game built on the Polkadot network. This isn't your traditional racing game where the fastest car always wins. In Polkowars, you'll need to take calculated risks, collect precious tokens along your track, and navigate through challenges in the arena.
 
