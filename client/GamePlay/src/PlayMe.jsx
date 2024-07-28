@@ -139,6 +139,7 @@ const PlayMe = ({ importedData }) => {
           <p>press w a s d to move</p>
           <p>press k to swap camera</p>
           <p>press r to reset</p>
+          <p>press q for Nitro Boost</p>
           <p>press u to export User Inputs</p>
         </div>
 

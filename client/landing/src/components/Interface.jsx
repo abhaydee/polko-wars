@@ -81,7 +81,7 @@ const AboutSection = (props) => {
         
       </motion.p>
       <motion.button
-        onClick={() => window.open("https://google.com/", "_blank")}
+        onClick={() => window.open("http://localhost:3000/")}
         className={`bg-indigo-600 text-white py-4 px-8 
       rounded-lg font-bold text-lg mt-4 md:mt-16`}
         initial={{
@@ -280,7 +280,7 @@ const ContactSection = () => {
         
 
         <div className="container mx-auto">
-          <button onClick={() => window.open("https://google.com/", "_blank")}  className="bg-indigo-600 text-white py-4 px-8 rounded-lg font-bold text-lg md:ml-12 ml-10 ">
+          <button onClick={() => window.open("http://localhost:3000/")}  className="bg-indigo-600 text-white py-4 px-8 rounded-lg font-bold text-lg md:ml-12 ml-10 ">
             Start Your Engines
           </button>
       <div >
