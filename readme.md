@@ -52,3 +52,15 @@ Our smart contracts are deployed on the Moonbeam network. You can check out the 
 Moonbase Alpha Contract : https://thirdweb.com/moonbase-alpha/0x3a2a14283f92879dA04000589dfc8183698e35a6
 
 Dive into the exciting world of Polkowars and experience a new dimension of racing games on the blockchain. Get ready to race, strategize, and collect your way to victory!
+
+Screenshots : 
+
+<img width="1512" alt="Screenshot 2024-07-28 at 11 23 42" src="https://github.com/user-attachments/assets/c0a5277f-366a-44c9-8026-bb4a2cc6ba46">
+
+<img width="1512" alt="Screenshot 2024-07-28 at 12 00 06" src="https://github.com/user-attachments/assets/0dda36c4-8e59-47dc-8a21-448b694b6d25">
+
+
+Video Link : https://www.awesomescreenshot.com/video/29963940?key=8daa68bf54541ef8c5d8a553f623a2d2
+
+
+
