@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "homepage": ".",
-  "type": "module",
   "dependencies": {
+    "@polkadot/api": "^12.2.2",
+    "@polkadot/keyring": "^13.0.2",
     "@react-three/cannon": "6.4.0",
     "@react-three/drei": "9.34.4",
     "@react-three/fiber": "8.8.10",
@@ -13,6 +14,7 @@
     "@testing-library/user-event": "^13.5.0",
     "@thirdweb-dev/react": "^4.0.7",
     "@thirdweb-dev/sdk": "^4.0.6",
+    "@unique-nft/accounts": "^0.3.7",
     "@unique-nft/sdk": "^0.7.7",
     "@unique-nft/sr25519": "^0.0.2",
     "@vercel/analytics": "^1.1.1",
