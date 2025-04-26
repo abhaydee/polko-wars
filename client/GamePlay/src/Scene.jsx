@@ -4,7 +4,7 @@ import {
   OrbitControls,
   PerspectiveCamera,
 } from "@react-three/drei";
-import { Suspense, useEffect, useState, useRef, useReducer } from "react";
+import { Suspense, useEffect, useState, useRef, useReducer, useContext } from "react";
 import { Car } from "./Car";
 import { Ground } from "./Ground";
 import { Track } from "./Track";
@@ -15,6 +15,8 @@ import { useNavigate } from "react-router-dom";
 import Billboards from "./Billboards";
 import { FinishLine } from "./FinishLine";
 import { StartLine } from "./StartLine";
+import { SocketContext } from "./SocketContext";
+import { RemotePlayer } from "./RemotePlayer";
 
 // Reducer function to handle user inputs
 const userInputReducer = (state, action) => {
@@ -53,6 +55,7 @@ export function Scene({ onFinishLinePickup, onPickup, setGameStarted, notify }) 
     [-6.5, 0.09, -4],
     [-6.5, 0.09, -4],
   ]);
+  const { remotePlayers } = useContext(SocketContext);
   const [userInputs, dispatch] = useReducer(userInputReducer, []);
   const frameCountRef = useRef(0);
   const [startLineVisible, setStartLineVisible] = useState(true);
@@ -141,9 +144,11 @@ export function Scene({ onFinishLinePickup, onPickup, setGameStarted, notify }) 
     startAnimation();
   }, []);
 
+  // Debug display for connected players
+  const connectedPlayers = Object.keys(remotePlayers).length;
+
   return (
     <Suspense fallback={null}>
-      
       <Environment files={process.env.PUBLIC_URL + "/textures/stadium.hdr"} background={"both"} />
       <PerspectiveCamera makeDefault position={cameraPosition} fov={40} />
       {!thirdPerson && <OrbitControls target={[-2.64, -0.71, 0.03]} />}
@@ -155,9 +160,79 @@ export function Scene({ onFinishLinePickup, onPickup, setGameStarted, notify }) 
       <StartLine scale={0.003} position={[-1, 0, -1]} onPickup={handleStartLinePickup} />
       <Car thirdPerson={thirdPerson} />
       <Billboards />
+      
+      {/* Render remote players with position markers */}
+      {Object.values(remotePlayers).map((player) => {
+        // Skip players with invalid positions
+        if (!player.position || typeof player.position.x !== 'number') {
+          return null;
+        }
+        
+        return (
+          <group key={player.id}>
+            <RemotePlayer playerData={player} />
+            
+            {/* Visual marker above the car for easier visibility */}
+            <mesh 
+              position={[
+                player.position.x, 
+                player.position.y + 0.4, 
+                player.position.z
+              ]}
+              key={`marker-${player.id}`}
+            >
+              <boxGeometry args={[0.05, 0.2, 0.05]} />
+              <meshStandardMaterial color="red" emissive="red" emissiveIntensity={0.5} />
+            </mesh>
+            
+            {/* Small flag for identification */}
+            <mesh 
+              position={[
+                player.position.x, 
+                player.position.y + 0.55, 
+                player.position.z
+              ]}
+              key={`flag-${player.id}`}
+            >
+              <sphereGeometry args={[0.05, 16, 16]} />
+              <meshStandardMaterial color="yellow" emissive="yellow" emissiveIntensity={0.5} />
+            </mesh>
+          </group>
+        );
+      })}
+      
       {coins.map((position, index) => (
         <Coin key={index} position={position} onPickup={() => handlePickup(index)} index={index} currentCoinIndex={currentCoinIndex} />
       ))}
+      
+      {/* Display connected players count with more details */}
+      {connectedPlayers > 0 && (
+        <Html position={[0, 2, 0]}>
+          <div style={{ 
+            background: 'rgba(0,0,0,0.7)', 
+            color: 'white', 
+            padding: '10px', 
+            borderRadius: '5px',
+            fontFamily: 'Arial',
+            width: '250px',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '16px', fontWeight: 'bold' }}>
+              {connectedPlayers} other player{connectedPlayers !== 1 ? 's' : ''} connected
+            </div>
+            <div style={{ fontSize: '12px', marginTop: '5px', textAlign: 'left' }}>
+              {Object.values(remotePlayers).map(player => (
+                <div key={player.id} style={{ margin: '5px 0' }}>
+                  Player {player.id.slice(0, 6)}...
+                  <div style={{ marginLeft: '10px', color: '#aaffaa' }}>
+                    Position: [{player.position.x.toFixed(1)}, {player.position.y.toFixed(1)}, {player.position.z.toFixed(1)}]
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </Html>
+      )}
     </Suspense>
   );
 }

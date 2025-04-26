@@ -9,6 +9,8 @@ import Profile from "./Profile";
 import Marketplace from "./Marketplace";
 import LobbyPage from "./LobbyPage";
 import Stake from "./Stake";
+import { SocketProvider } from "./SocketContext";
+import { CarPositionProvider } from "./CarPositionContext";
 
 const App = () => {
     const [importedData, setImportedData] = useState(null);
@@ -21,35 +23,33 @@ const App = () => {
     };
 
     return (
-        <>
-          
-          <Routes>
-            <Route path="/" element={<Home />} />
-            {/* <Route path="/buy" element={<Buy />} /> */}
-            
-
-            <Route path="/leaderBoard" element={<LeaderBoard/> } />
-            <Route path="/profile" element={<Profile/> } />
-            <Route path="/marketplace" element={<Marketplace/> } />
-            <Route path="/lobby" element={<LobbyPage/> } />
-            <Route path="/stake" element={<Stake/> } />
-            
-    
-            {/* Pass imported data to PlayMe */}
-            <Route
-              path="/play-me"
-              element={<PlayMe importedData={importedData}/>}
-            />
-    
-            {/* Render Select component and provide the callback */}
-            {/* <Route
-              path="/import"
-              element={<Select onFileUpload={handleImportedData} />}
-            /> */}
-          </Routes>
-        </>
+        <SocketProvider>
+          <CarPositionProvider>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              {/* <Route path="/buy" element={<Buy />} /> */}
+              
+              <Route path="/leaderBoard" element={<LeaderBoard/> } />
+              <Route path="/profile" element={<Profile/> } />
+              <Route path="/marketplace" element={<Marketplace/> } />
+              <Route path="/lobby" element={<LobbyPage/> } />
+              <Route path="/stake" element={<Stake/> } />
+              
+              {/* Pass imported data to PlayMe */}
+              <Route
+                path="/play-me"
+                element={<PlayMe importedData={importedData}/>}
+              />
+      
+              {/* Render Select component and provide the callback */}
+              {/* <Route
+                path="/import"
+                element={<Select onFileUpload={handleImportedData} />}
+              /> */}
+            </Routes>
+          </CarPositionProvider>
+        </SocketProvider>
       );
-
 }
 
 export default App;

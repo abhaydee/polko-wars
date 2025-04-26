@@ -101,6 +101,7 @@ const Stake = () => {
     }
 
     toast.info('Staking in progress...');
+    window.open("http://localhost:3001/play-me")
 
     const transaction = prepareContractCall({
       contract: tokenContract,
@@ -112,7 +113,7 @@ const Stake = () => {
       onSuccess: (tx) => {
         console.log("Transaction successful:", tx);
         toast.info('Staking in progress...');
-        window.open("http://localhost:3001/play-me")
+        
       },
       onError: (error) => {
         console.error("Transaction failed:", error);
