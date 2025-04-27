@@ -1,23 +1,8 @@
 import React from 'react'
-import Home from './Home'
 import { Link } from 'react-router-dom';
 import styled from 'styled-components';
-import { ConnectButton, useActiveAccount } from "thirdweb/react";
-import { client } from "./client";
-import { createWallet, inAppWallet } from "thirdweb/wallets";
-
-const wallets = [
-  inAppWallet({
-    auth: {
-      options: [
-        "email",
-        "google",
-        "phone",
-      ],
-    },
-  }),
-  createWallet("io.metamask"),
-];
+import { usePolkadotWallet } from './PolkadotWalletContext';
+import PolkadotConnectButton from './components/PolkadotConnectButton';
 
 const CardContainer = styled.div`
   display: flex;
@@ -45,28 +30,21 @@ const Button = styled.button`
   cursor: pointer;
   margin: 1rem
 `;
+
 const Profile = () => {
-  const activeAccount = useActiveAccount();
-  const address = activeAccount?.address
-  console.log(address)
+  const { activeAccount } = usePolkadotWallet();
+  const address = activeAccount?.address;
+  console.log(address);
+  
   return (
     <div>
-     <ConnectButton
-            theme={"light"}
-            btnTitle={"Login"}
-            modalTitle={"Select a Wallet"}
-            modalSize={"compact"}
-            modalTitleIconUrl={""}
-            dropdownPosition={{
-              side: "left",
-              align: "end",
-            }}
-            client={client}
-            wallets={wallets}
-      />
+      <PolkadotConnectButton btnTitle="Login" />
+      
       {address && (
-            <Button > <Link to="/" style={{ textDecoration: 'none'}} >Back</Link> </Button>
-          )}
+        <Button>
+          <Link to="/" style={{ textDecoration: 'none' }}>Back</Link>
+        </Button>
+      )}
     </div>
   )
 }

@@ -1,22 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
-import { ConnectButton, useActiveAccount } from "thirdweb/react";
-import { client } from "./client";
-import { createWallet, inAppWallet } from "thirdweb/wallets";
-
-const wallets = [
-  inAppWallet({
-    auth: {
-      options: [
-        "email",
-        "google",
-        "phone",
-      ],
-    },
-  }),
-  createWallet("io.metamask"),
-];
+import { usePolkadotWallet } from './PolkadotWalletContext';
+import PolkadotConnectButton from './components/PolkadotConnectButton';
 
 const Container = styled.div`
   display: flex;
@@ -143,7 +129,7 @@ const CAR_OPTIONS = [
 
 const LobbyPage = () => {
   const navigate = useNavigate();
-  const activeAccount = useActiveAccount();
+  const { activeAccount } = usePolkadotWallet();
   const address = activeAccount?.address;
   const [selectedColor, setSelectedColor] = useState('#ff0000'); // Default: red
 
@@ -175,19 +161,7 @@ const LobbyPage = () => {
       <h1>Polko Wars Lobby</h1>
       
       <WalletSection>
-        <ConnectButton
-          theme={"light"}
-          btnTitle={"Login"}
-          modalTitle={"Select a Wallet"}
-          modalSize={"compact"}
-          modalTitleIconUrl={""}
-          dropdownPosition={{
-            side: "left",
-            align: "end",
-          }}
-          client={client}
-          wallets={wallets}
-        />
+        <PolkadotConnectButton btnTitle="Login" />
       </WalletSection>
 
       <CustomizationSection>
@@ -198,29 +172,30 @@ const LobbyPage = () => {
           {CAR_OPTIONS.map((car) => (
             <CarOption 
               key={car.color} 
-              selected={selectedColor === car.color} 
+              selected={selectedColor === car.color}
               onClick={() => handleColorSelect(car.color)}
             >
-              <CarImage 
-                src={process.env.PUBLIC_URL + car.image} 
-                alt={`${car.name} car`} 
-              />
+              <CarImage src={car.image} alt={`${car.name} car`} />
             </CarOption>
           ))}
         </CarSelector>
+        
+        <p>Selected car: {CAR_OPTIONS.find(car => car.color === selectedColor)?.name}</p>
       </CustomizationSection>
 
       <CardContainer>
         <Card onClick={handleF2P}>
-          <Title>Free to Play</Title>
-          <Description>Join a multiplayer race with your selected car!</Description>
-          <StartButton>Start Racing</StartButton>
+          <Title>Free Mode</Title>
+          <Description>Play for fun without staking tokens</Description>
+          <StartButton>Start Free Game</StartButton>
         </Card>
         
         <Card onClick={handleP2E}>
-          <Title>Play to Earn</Title>
-          <Description>Stake tokens and earn rewards while racing</Description>
-          <StartButton>Stake & Play</StartButton>
+          <Title>Stake Mode</Title>
+          <Description>Stake tokens to earn rewards as you play</Description>
+          <StartButton disabled={!address}>
+            {address ? 'Stake & Play' : 'Connect Wallet to Play'}
+          </StartButton>
         </Card>
       </CardContainer>
     </Container>

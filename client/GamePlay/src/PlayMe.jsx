@@ -8,26 +8,9 @@ import { Perf } from "r3f-perf";
 import styled from "styled-components";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { client } from "./client";
-import { ConnectButton, useActiveAccount, useWalletBalance, useSendTransaction } from "thirdweb/react";
-import { prepareContractCall, getContract, defineChain } from "thirdweb";
-import { ConnectEmbed } from "thirdweb/react";
-import { createWallet, inAppWallet } from "thirdweb/wallets";
+import { usePolkadotWallet } from './PolkadotWalletContext';
+import PolkadotConnectButton from './components/PolkadotConnectButton';
 import { useLocation } from "react-router-dom";
-
-const wallets = [
-  inAppWallet({
-    auth: {
-      options: [
-        "email",
-        "google",
-        "phone",
-      ],
-    },
-  }),
-  createWallet("io.metamask"),
-];
-
 
 const Container = styled.div`
   position: relative;
@@ -61,7 +44,7 @@ const PlayMe = ({ importedData }) => {
   const [points, setPoints] = useState(0);
   const [timer, setTimer] = useState(60);
   const [gameStarted, setGameStarted] = useState(false);
-  const activeAccount = useActiveAccount();
+  const { activeAccount } = usePolkadotWallet();
   const address = activeAccount?.address;
   const location = useLocation();
   
@@ -112,19 +95,8 @@ const PlayMe = ({ importedData }) => {
 
   return (
     <CarPositionProvider>
-      <Overlay><ConnectButton
-            theme={"light"}
-            btnTitle={"Login"}
-            modalTitle={"Select a Wallet"}
-            modalSize={"compact"}
-            modalTitleIconUrl={""}
-            dropdownPosition={{
-              side: "left",
-              align: "end",
-            }}
-            client={client}
-            wallets={wallets}
-          />
+      <Overlay>
+        <PolkadotConnectButton btnTitle="Login" />
       </Overlay>
       <Container>
       

@@ -4,29 +4,9 @@ import styled from 'styled-components';
 import moment from 'moment-timezone';
 import Bgleader from "./Assests/bg_leader.jpeg";
 import TrophyImage from "./Assests/winner.png";
-import { ConnectButton, useActiveAccount, useWalletBalance, useSendTransaction } from "thirdweb/react";
-import { prepareContractCall, getContract, defineChain } from "thirdweb";
-import { createWallet, inAppWallet } from "thirdweb/wallets";
-import { client } from "./client";
+import { usePolkadotWallet } from './PolkadotWalletContext';
+import PolkadotConnectButton from './components/PolkadotConnectButton';
 import { NFT_CONTRACT_ADDRESS, TOKEN_CONTRACT_ADDRESS } from './constants/addresses';
-
-const wallets = [
-  inAppWallet({
-    auth: {
-      options: [
-        "email",
-        "google",
-        "phone",
-      ],
-    },
-  }),
-  createWallet("io.metamask"),
-];
-
-const myChain = defineChain({
-  id: 1287,
-  rpc: "https://1287.rpc.thirdweb.com/",
-});
 
 const Container = styled.div`
   display: flex;
@@ -138,17 +118,6 @@ const LeaderboardTable = styled.table`
   }
 `;
 
-const StyledConnectButton = styled(ConnectButton)`
-  margin-bottom: 20px;
-  .tw-connect-wallet {
-    background-color: #065c63;
-    color: #fff;
-    &:hover {
-      background-color: #043f4b;
-    }
-  }
-`;
-
 const CenteredImage = styled.img`
   display: block;
   margin: 20px auto;
@@ -169,24 +138,10 @@ const LeaderBoard = () => {
   const [leaderBoardData, setLeaderBoardData] = useState([]);
   const [isDataAdded, setDataAdded] = useState(false);
   const [winnerClaimed, setWinnerClaimed] = useState(true);
-  const activeAccount = useActiveAccount();
+  const { activeAccount, api, sendTransaction, balance, isLoading } = usePolkadotWallet();
   const address = activeAccount?.address;
-  const { mutate: sendTransaction } = useSendTransaction();
   const [isProfileOpen, setProfileOpen] = useState(false);
   const [timeLeft, setTimeLeft] = useState(24 * 60 * 60); // 24 hours in seconds
-
-  const account = useActiveAccount();
-  const { data: balance, isLoading } = useWalletBalance({
-    client,
-    chain: myChain,
-    address: TOKEN_CONTRACT_ADDRESS,
-  });
-
-  const tokenContract = getContract({
-    client,
-    address: TOKEN_CONTRACT_ADDRESS,
-    chain: myChain,
-  });
 
   useEffect(() => {
     getLeaderboardDataFromLocalStorage();
@@ -258,15 +213,24 @@ const LeaderBoard = () => {
   }, [address, isDataAdded, state, leaderBoardData]);
 
   const handleERC20 = async () => {
-    const transaction = prepareContractCall({
-      contract: tokenContract,
-      method: "function mintTo(address to, uint256 amount)",
-      params: [address, 10], // Adjust the amount as needed
-    });
-    sendTransaction(transaction, {
-      onSuccess: (tx) => console.log("Transaction successful:", tx),
-      onError: (error) => console.error("Transaction failed:", error),
-    });
+    if (!address || !api) {
+      alert('Please connect your wallet first');
+      return;
+    }
+
+    try {
+      // Create a token minting transaction for reward
+      const amount = api.createType('Balance', 10 * 1_000_000_000); // 10 tokens with proper decimals
+      const transaction = api.tx.balances.transfer(address, amount);
+      
+      const result = await sendTransaction(transaction);
+      
+      if (result) {
+        console.log("Transaction successful:", result);
+      }
+    } catch (error) {
+      console.error("Transaction failed:", error);
+    }
   };
 
   const formatTime = (seconds) => {
@@ -278,18 +242,8 @@ const LeaderBoard = () => {
 
   return (
     <Container>
-      <StyledConnectButton
-        theme={"light"}
+      <PolkadotConnectButton
         btnTitle={"Login"}
-        modalTitle={"Select a Wallet"}
-        modalSize={"compact"}
-        modalTitleIconUrl={""}
-        dropdownPosition={{
-          side: "left",
-          align: "end",
-        }}
-        client={client}
-        wallets={wallets}
       />
       <ProfileContainer>
         <ProfileHeader>
