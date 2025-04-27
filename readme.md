@@ -6,10 +6,7 @@
 
 Polkowars combines the thrill of car racing with the strategy of collecting tokens. Here's how it works:
 
-Race and Collect: It's not just about speed. Collect as many tokens as you can within 60 seconds.
-Win Conditions: The player who collects the most tokens and finishes the race within 60 seconds wins.
-Challenges: Enjoy multiple gameplay modes, including a Free-to-Play mode for all users and a Play-to-Earn mode for those looking to earn rewards.
-All transactions are seamlessly handled by the Unique Network parachain, with smart contracts deployed on the Moonbeam network.
+Race and Collect: It's not just about speed. Collect as many tokens as you can within 60 seconds. Win Conditions: The player who collects the most tokens and finishes the race wins. Challenges: Enjoy multiple gameplay modes, including a Free-to-Play mode and the new Betting Challenge —Audiences can bet and win. All transactions are handled seamlessly by Polkadot's Westend Asset Hub and Moonbeam parachain
 
 ## Stunning Visuals and Gameplay
 Experience amazing visuals and engaging gameplay that will keep you coming back for more. Dive into the world of Polkowars and see how strategy meets speed.
@@ -22,7 +19,7 @@ Ready to get started? Follow these steps to set up the game:
 Install Node.js: Make sure you have Node.js installed on your machine.
 Install Dependencies: Navigate to the different divisions of the project and run npm install.
 Configure Environment Variables: Set up the necessary environment variables for the project.
-Install MetaMask: Add the MetaMask extension to your browser to manage your digital assets.
+Install Talisman : Wallet Required for seamless Polkadot Transactions 
 
 ## Technologies Used
 
@@ -30,37 +27,40 @@ Polkowars is built using a variety of cutting-edge technologies:
 
 Frontend:
 
-React
-React ThreeFiber
-Three.js
+React React ThreeFiber Three.js 
+
 Backend:
 
-Solidity
-Unique Network Parachain
-Moonbeam Network Parachain
-Crust Decentralized Storage Parachain
-Thirdweb for smart contract deployment
+Solidity,  Moonbeam Network Parachain for smart contract deployments,  Westend Asset Hub Testnet for assets , NFTS and Uniques from Polkadot Ecosystem
+
+Node.JS for server side scripts and backend 
 
 ## Unique Network Collections Data 
 
 https://uniquescan.io/opal/collections/3286 
 
+## Polkadot Westend Asset Hub Subscan : 
+
+https://assethub-westend.subscan.io/account/5EUDMH4yMmgzZT9idqifyfrEpvW15EiPts1twMWuQQM6WcmX?tab=extrinsic
+
 ## Smart Contract Deployment
 
 Our smart contracts are deployed on the Moonbeam network. You can check out the deployment here:
 
-Moonbase Alpha Contract : https://thirdweb.com/moonbase-alpha/0x3a2a14283f92879dA04000589dfc8183698e35a6
+Moonbase Alpha Contract : https://moonbase.moonscan.io/address/0x4c8Dc4C116EE9b65bfB584e7Ed94576280F2371B
 
 Dive into the exciting world of Polkowars and experience a new dimension of racing games on the blockchain. Get ready to race, strategize, and collect your way to victory!
 
 Screenshots : 
+![IMG_4382](https://github.com/user-attachments/assets/9d62b34a-de21-42c4-ab5a-c56db406b048)
 
-<img width="1512" alt="Screenshot 2024-07-28 at 11 23 42" src="https://github.com/user-attachments/assets/c0a5277f-366a-44c9-8026-bb4a2cc6ba46">
+![IMG_7282](https://github.com/user-attachments/assets/de940bd9-055a-4943-8976-70a9f4cc8e20)
 
-<img width="1512" alt="Screenshot 2024-07-28 at 12 00 06" src="https://github.com/user-attachments/assets/0dda36c4-8e59-47dc-8a21-448b694b6d25">
+![IMG_0848](https://github.com/user-attachments/assets/734b7b71-1c30-4899-905e-67e19fa6a5ce)
 
 
-Video Link : https://www.awesomescreenshot.com/video/29963940?key=8daa68bf54541ef8c5d8a553f623a2d2
+
+
 
 
 
