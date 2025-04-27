@@ -10,6 +10,11 @@ export const SocketProvider = ({ children }) => {
   const [remotePlayers, setRemotePlayers] = useState({});
   const [collectedCoins, setCollectedCoins] = useState({});
   const [carColor, setCarColor] = useState(localStorage.getItem('carColor') || '#ff0000');
+  
+  // Waiting room state
+  const [waitingRoomPlayers, setWaitingRoomPlayers] = useState([]);
+  const [waitingRoomTimeLeft, setWaitingRoomTimeLeft] = useState(5 * 60);
+  const [waitingRoomGameStarting, setWaitingRoomGameStarting] = useState(false);
 
   // Helper to update a specific player's data
   const updatePlayerData = useCallback((playerId, newData) => {
@@ -50,7 +55,16 @@ export const SocketProvider = ({ children }) => {
       
       // Send the player's car color to the server
       const playerCarColor = localStorage.getItem('carColor') || '#ff0000';
-      newSocket.emit('playerInit', { carColor: playerCarColor });
+      
+      // Check if we have an item ID stored in localStorage
+      const playerItemId = localStorage.getItem('playerItemId');
+      
+      // Send initial player data including item ID if available
+      newSocket.emit('playerInit', { 
+        carColor: playerCarColor,
+        itemId: playerItemId || null
+      });
+      
       setCarColor(playerCarColor);
     };
 
@@ -85,6 +99,12 @@ export const SocketProvider = ({ children }) => {
 
     const handleNewPlayer = (player) => {
       console.log('New player joined:', player);
+      
+      // Make sure to log if player has an itemId
+      if (player.itemId) {
+        console.log(`Player ${player.id} has item ID: ${player.itemId}`);
+      }
+      
       updatePlayerData(player.id, player);
     };
 
@@ -101,6 +121,12 @@ export const SocketProvider = ({ children }) => {
     
     const handlePlayerUpdated = (player) => {
       console.log('Player updated:', player);
+      
+      // Make sure to log if player has an itemId
+      if (player.itemId) {
+        console.log(`Updated player ${player.id} has item ID: ${player.itemId}`);
+      }
+      
       if (player && player.id) {
         updatePlayerData(player.id, player);
       }
@@ -131,6 +157,33 @@ export const SocketProvider = ({ children }) => {
         console.log(`Player ${data.collector.id} collected coin ${data.coinIndex}`);
       }
     };
+    
+    // Handle waiting room updates
+    const handleWaitingRoomUpdate = (data) => {
+      console.log('Waiting room update:', data);
+      
+      if (data.players) {
+        // Log any players with itemIds for debugging
+        data.players.forEach(player => {
+          if (player.itemId) {
+            console.log(`Waiting room player ${player.id} has item ID: ${player.itemId}`);
+            
+            // Also update the remotePlayers with this information
+            updatePlayerData(player.id, player);
+          }
+        });
+        
+        setWaitingRoomPlayers(data.players);
+      }
+      
+      if (data.timeLeft !== undefined) {
+        setWaitingRoomTimeLeft(data.timeLeft);
+      }
+      
+      if (data.gameStarting !== undefined) {
+        setWaitingRoomGameStarting(data.gameStarting);
+      }
+    };
 
     // Add event listeners
     newSocket.on('connect', handleConnect);
@@ -142,6 +195,7 @@ export const SocketProvider = ({ children }) => {
     newSocket.on('playerDisconnected', handlePlayerDisconnected);
     newSocket.on('currentCollectedCoins', handleCurrentCollectedCoins);
     newSocket.on('coinCollectionUpdated', handleCoinCollectionUpdated);
+    newSocket.on('waitingRoomUpdate', handleWaitingRoomUpdate);
 
     // Clean up on unmount
     return () => {
@@ -154,6 +208,7 @@ export const SocketProvider = ({ children }) => {
       newSocket.off('playerDisconnected', handlePlayerDisconnected);
       newSocket.off('currentCollectedCoins', handleCurrentCollectedCoins);
       newSocket.off('coinCollectionUpdated', handleCoinCollectionUpdated);
+      newSocket.off('waitingRoomUpdate', handleWaitingRoomUpdate);
       newSocket.disconnect();
     };
   }, [updatePlayerData]);
@@ -205,9 +260,61 @@ export const SocketProvider = ({ children }) => {
       socket.emit('coinCollected', { coinIndex });
     }
   }, [socket]);
+  
+  // Helper function to register in waiting room
+  const registerWaitingArena = useCallback((data) => {
+    if (socket) {
+      console.log('Registering in waiting arena:', data);
+      socket.emit('registerWaitingArena', {
+        carColor: data.carColor || carColor,
+        address: data.address,
+        name: data.name,
+        itemId: data.itemId, // Include item ID
+        isParticipant: data.isParticipant
+      });
+    }
+  }, [socket, carColor]);
+  
+  // Helper function to leave waiting room
+  const leaveWaitingArena = useCallback(() => {
+    if (socket) {
+      console.log('Leaving waiting arena');
+      socket.emit('leaveWaitingArena');
+    }
+  }, [socket]);
+  
+  // Helper function to mark ready in waiting room
+  const setReadyInWaitingArena = useCallback(() => {
+    if (socket) {
+      console.log('Setting ready in waiting arena');
+      socket.emit('readyToStart');
+    }
+  }, [socket]);
+  
+  // Helper function to force start game (admin/dev only)
+  const forceStartGame = useCallback(() => {
+    if (socket && process.env.NODE_ENV === 'development') {
+      console.log('Force starting game');
+      socket.emit('forceStartGame');
+    }
+  }, [socket]);
 
   return (
-    <SocketContext.Provider value={{ socket, remotePlayers, collectedCoins, collectCoin, carColor }}>
+    <SocketContext.Provider value={{ 
+      socket, 
+      remotePlayers, 
+      collectedCoins, 
+      collectCoin, 
+      carColor,
+      // Waiting room related
+      waitingRoomPlayers,
+      waitingRoomTimeLeft,
+      waitingRoomGameStarting,
+      registerWaitingArena,
+      leaveWaitingArena,
+      setReadyInWaitingArena,
+      forceStartGame
+    }}>
       {children}
     </SocketContext.Provider>
   );

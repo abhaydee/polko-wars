@@ -1,22 +1,8 @@
 import React from 'react';
 import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
-import { ConnectButton, useActiveAccount } from "thirdweb/react";
-import { client } from "./client";
-import { createWallet, inAppWallet } from "thirdweb/wallets";
-
-const wallets = [
-  inAppWallet({
-    auth: {
-      options: [
-        "email",
-        "google",
-        "phone",
-      ],
-    },
-  }),
-  createWallet("io.metamask"),
-];
+import { usePolkadotWallet } from './PolkadotWalletContext';
+import PolkadotConnectButton from './components/PolkadotConnectButton';
 
 const Container = styled.div`
   display: flex;
@@ -51,45 +37,32 @@ const Title = styled.h3`
 
 const Explore = () => {
     const navigate = useNavigate();
-    const activeAccount = useActiveAccount();
-  const address = activeAccount?.address
-  console.log(address)
-
-    const handleF2P = () => {
-        navigate('/lobby');
+    const { activeAccount } = usePolkadotWallet();
+  
+    const handleNavigation = (path) => {
+      navigate(path);
     };
-
-    const handleP2E = () => {
-      navigate('/stake')
-    }
-  return (
-    <Container>
-    <ConnectButton
-            theme={"light"}
-            btnTitle={"Login"}
-            modalTitle={"Select a Wallet"}
-            modalSize={"compact"}
-            modalTitleIconUrl={""}
-            dropdownPosition={{
-              side: "left",
-              align: "end",
-            }}
-            client={client}
-            wallets={wallets}
-      />
-      <h2>Explore</h2>
-      <CardContainer>
-        <Card onClick={handleF2P}>
-          <Title>FREE TO PLAY</Title>
-          <p>Join and play for free!</p>
-        </Card>
-        <Card onClick={handleP2E}>
-          <Title>PLAY TO EARN</Title>
-          <p>Participate and earn rewards!</p>
-        </Card>
-      </CardContainer>
-    </Container>
-  );
-}
+  
+    return (
+      <Container>
+        <h1>Explore Polko Wars</h1>
+        <div style={{ marginBottom: '20px' }}>
+          <PolkadotConnectButton />
+        </div>
+  
+        <CardContainer>
+          <Card onClick={() => handleNavigation('/lobby')}>
+            <Title>FREE TO PLAY</Title>
+            <p>Join and play for free!</p>
+          </Card>
+          
+          <Card onClick={() => handleNavigation('/stake')}>
+            <Title>PLAY TO EARN</Title>
+            <p>Participate and earn rewards!</p>
+          </Card>
+        </CardContainer>
+      </Container>
+    );
+};
 
 export default Explore;

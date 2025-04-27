@@ -2,29 +2,9 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { ConnectButton, useActiveAccount, useWalletBalance, useSendTransaction } from "thirdweb/react";
-import { client } from "./client";
-import { createWallet, inAppWallet } from "thirdweb/wallets";
-import { prepareContractCall, getContract, defineChain } from "thirdweb";
+import { usePolkadotWallet } from './PolkadotWalletContext';
+import PolkadotConnectButton from './components/PolkadotConnectButton';
 import { TOKEN_CONTRACT_ADDRESS } from './constants/addresses';
-
-const wallets = [
-  inAppWallet({
-    auth: {
-      options: [
-        "email",
-        "google",
-        "phone",
-      ],
-    },
-  }),
-  createWallet("io.metamask"),
-];
-
-const myChain = defineChain({
-  id: 1287,
-  rpc: "https://1287.rpc.thirdweb.com/",
-});
 
 const Container = styled.div`
   display: flex;
@@ -78,21 +58,9 @@ const Input = styled.input`
 `;
 
 const Stake = () => {
-  const activeAccount = useActiveAccount();
+  const { activeAccount, balance, api, sendTransaction, isLoading } = usePolkadotWallet();
   const address = activeAccount?.address;
-  const { data: balance, isLoading } = useWalletBalance({
-    client,
-    chain: myChain,
-    address,
-  });
-  const { mutate: sendTransaction } = useSendTransaction();
   const [stakeAmount, setStakeAmount] = useState('');
-
-  const tokenContract = getContract({
-    client,
-    address: TOKEN_CONTRACT_ADDRESS,
-    chain: myChain,
-  });
 
   const handleStake = async () => {
     if (!stakeAmount || isNaN(stakeAmount)) {
@@ -100,66 +68,72 @@ const Stake = () => {
       return;
     }
 
-    toast.info('Staking in progress...');
-    window.open("http://localhost:3001/play-me")
+    if (!api) {
+      toast.error('Polkadot API not initialized.');
+      return;
+    }
 
-    const transaction = prepareContractCall({
-      contract: tokenContract,
-      method: "function transfer(address to, uint256 amount)",
-      params: [address, parseFloat(stakeAmount)], // Adjust the amount as needed
-    });
+    if (!activeAccount) {
+      toast.error('Please connect your wallet first.');
+      return;
+    }
 
-    sendTransaction(transaction, {
-      onSuccess: (tx) => {
-        console.log("Transaction successful:", tx);
-        toast.info('Staking in progress...');
-        
-      },
-      onError: (error) => {
-        console.error("Transaction failed:", error);
-        toast.error('Transaction failed. Please try again.');
-      },
-    });
-    
+    // Create a DOT transfer transaction
+    try {
+      toast.info('Preparing transaction...');
+      
+      // Create a transfer transaction to the token contract (staking)
+      const transaction = api.tx.balances.transfer(
+        TOKEN_CONTRACT_ADDRESS,  // Recipient address (contract)
+        api.createType('Balance', stakeAmount * 1_000_000_000) // Convert to proper format (DOT has 10 decimals)
+      );
+      
+      // Send the transaction
+      const result = await sendTransaction(transaction);
+      
+      if (result) {
+        toast.success('Stake successful!');
+        window.open("http://localhost:3001/play-me");
+      } else {
+        toast.error('Staking failed');
+      }
+    } catch (error) {
+      console.error('Staking error:', error);
+      toast.error(`Staking failed: ${error.message}`);
+    }
   };
 
   return (
     <Container>
       <ToastContainer />
-      <ConnectButton
-        theme={"light"}
-        btnTitle={"Login"}
-        modalTitle={"Select a Wallet"}
-        modalSize={"compact"}
-        modalTitleIconUrl={""}
-        dropdownPosition={{
-          side: "left",
-          align: "end",
-        }}
-        client={client}
-        wallets={wallets}
-      />
+      <div style={{ marginBottom: '20px' }}>
+        <PolkadotConnectButton btnTitle="Connect Wallet" />
+      </div>
+      
       {address && (
         <ProfileSection>
           <h2>Profile</h2>
           <p>Wallet address: {address}</p>
           <p>
-            Wallet balance: {isLoading ? 'Loading...' : `${balance?.displayValue} ${balance?.symbol}`}
+            Wallet balance: {isLoading ? 'Loading...' : (balance ? balance.formatted : 'Unknown')}
           </p>
         </ProfileSection>
       )}
+      
       {address && (
         <StakeSection>
           <h2>Stake to Create Your Own Track</h2>
           <p>Stake tokens to create your own track with coin placements of your choice.</p>
-          <h2>Stake minimu of 1000 $POKO</h2>
+          <h2>Stake minimum of 1000 $POKO</h2>
           <Input
             type="text"
             placeholder="Enter amount to stake"
             value={stakeAmount}
             onChange={(e) => setStakeAmount(e.target.value)}
           />
-          <Button onClick={handleStake}>Stake</Button>
+          <Button onClick={handleStake} disabled={isLoading}>
+            {isLoading ? 'Processing...' : 'Stake'}
+          </Button>
         </StakeSection>
       )}
     </Container>

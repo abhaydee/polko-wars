@@ -1,357 +1,981 @@
-import React, { useEffect, useState } from 'react';
-import { useLocation, Link } from 'react-router-dom';
+import React, { useState, useEffect, useContext } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
-import moment from 'moment-timezone';
-import Bgleader from "./Assests/bg_leader.jpeg";
-import TrophyImage from "./Assests/winner.png";
-import { ConnectButton, useActiveAccount, useWalletBalance, useSendTransaction } from "thirdweb/react";
-import { prepareContractCall, getContract, defineChain } from "thirdweb";
-import { createWallet, inAppWallet } from "thirdweb/wallets";
-import { client } from "./client";
-import { NFT_CONTRACT_ADDRESS, TOKEN_CONTRACT_ADDRESS } from './constants/addresses';
-
-const wallets = [
-  inAppWallet({
-    auth: {
-      options: [
-        "email",
-        "google",
-        "phone",
-      ],
-    },
-  }),
-  createWallet("io.metamask"),
-];
-
-const myChain = defineChain({
-  id: 1287,
-  rpc: "https://1287.rpc.thirdweb.com/",
-});
+import { SocketContext } from './SocketContext';
+import { usePolkadotWallet } from './PolkadotWalletContext';
+import { payoutWinner } from './utils/payout-winner';
+import { disburseTokensToParticipant } from './utils/disburse-tokens';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import PolkadotConnectButton from './components/PolkadotConnectButton';
 
 const Container = styled.div`
   display: flex;
   flex-direction: column;
   align-items: center;
   padding: 20px;
-  background-color: #f0f2f5;
-  min-height: 100vh;
-  background-image: url(${Bgleader});
-  background-size: cover;
-  color: #d87f7f;
   font-family: Arial, sans-serif;
+  max-width: 1200px;
+  margin: 0 auto;
+  background-color: #f5f5f5;
+  min-height: 100vh;
+  max-height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+  
+  /* Add smooth scrolling */
+  scroll-behavior: smooth;
+  
+  /* Improve scrollbar appearance */
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  &::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+  }
+  
+  &::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+  }
+  
+  &::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
 `;
 
-const ProfileContainer = styled.div`
+const HeaderContainer = styled.div`
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 30px;
+`;
+
+const WalletSection = styled.div`
+  margin-bottom: 20px;
   width: 100%;
   max-width: 800px;
-  background-color: #fff;
-  border-radius: 10px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  margin-bottom: 20px;
-  padding: 20px;
+  display: flex;
+  justify-content: flex-end;
 `;
 
-const ProfileHeader = styled.div`
+const Header = styled.div`
+  text-align: center;
+  margin-bottom: 30px;
+  width: 100%;
+`;
+
+const Title = styled.h1`
+  color: #333;
+  margin-bottom: 10px;
+  font-size: 2.5rem;
+`;
+
+const Subtitle = styled.p`
+  color: #666;
+  margin-bottom: 20px;
+  font-size: 1.2rem;
+`;
+
+const LeaderboardTable = styled.div`
+  width: 100%;
+  max-width: 800px;
+  background-color: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  margin-bottom: 30px;
+`;
+
+const TableHeader = styled.div`
+  display: grid;
+  grid-template-columns: 70px minmax(200px, 1fr) 100px 100px;
+  padding: 15px 20px;
+  background-color: #333;
+  color: white;
+  font-weight: bold;
+  align-items: center;
+  
+  @media (max-width: 600px) {
+    grid-template-columns: 50px minmax(120px, 1fr) 80px 80px;
+    padding: 12px 10px;
+    font-size: 0.9rem;
+  }
+`;
+
+const TableRow = styled.div`
+  display: grid;
+  grid-template-columns: 70px minmax(200px, 1fr) 100px 100px;
+  padding: 15px 20px;
+  border-bottom: 1px solid #eee;
+  align-items: center;
+  transition: background-color 0.2s;
+  
+  @media (max-width: 600px) {
+    grid-template-columns: 50px minmax(120px, 1fr) 80px 80px;
+    padding: 12px 10px;
+    font-size: 0.9rem;
+  }
+  
+  &:nth-child(even) {
+    background-color: #f9f9f9;
+  }
+  
+  &:last-child {
+    border-bottom: none;
+  }
+  
+  &:hover {
+    background-color: #f0f0f0;
+  }
+  
+  ${props => props.isWinner && `
+    background-color: #e8f5e9 !important;
+    border-left: 5px solid #4caf50;
+  `}
+  
+  ${props => props.isUser && `
+    font-weight: bold;
+    background-color: #e3f2fd !important;
+    border-left: 5px solid #2196f3;
+  `}
+`;
+
+const Rank = styled.div`
+  font-weight: bold;
+  font-size: 1.2rem;
+  color: ${props => props.top3 ? '#ffa500' : '#333'};
+`;
+
+const PlayerInfo = styled.div`
+  display: flex;
+  align-items: center;
+`;
+
+const CarIcon = styled.div`
+  width: 40px;
+  height: 30px;
+  margin-right: 10px;
+  
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+`;
+
+const PlayerName = styled.div`
+  font-weight: ${props => props.isUser ? 'bold' : 'normal'};
+`;
+
+const CoinCount = styled.div`
+  font-weight: bold;
+  color: #f0ad4e;
+`;
+
+const BetResult = styled.div`
+  font-weight: bold;
+  color: ${props => props.win ? '#4caf50' : props.lose ? '#f44336' : '#999'};
+`;
+
+const BettingResults = styled.div`
+  width: 100%;
+  max-width: 800px;
+  background-color: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 20px;
+  margin-bottom: 30px;
+`;
+
+const BetTitle = styled.h2`
+  color: #333;
+  margin-bottom: 15px;
+  text-align: center;
+`;
+
+const TotalPool = styled.div`
+  font-size: 1.2rem;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 20px;
+  padding: 10px;
+  background-color: #673ab7;
+  color: white;
+  border-radius: 5px;
+`;
+
+const BetItem = styled.div`
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+  
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+const BetAddress = styled.div`
+  font-size: 0.9rem;
+  color: #666;
+  
+  ${props => props.isUser && `
+    font-weight: bold;
+    color: #333;
+  `}
+`;
+
+const BetAmount = styled.div`
+  font-weight: bold;
+  color: #f0ad4e;
+`;
+
+const WinnerHighlight = styled.div`
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background-color: #f9f9f9;
+  padding: 20px;
+  border-radius: 8px;
   margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+`;
 
-  h2 {
-    margin: 0;
-    color: #333;
-  }
+const WinnerInfo = styled.div`
+  display: flex;
+  align-items: center;
+`;
 
-  button {
-    background-color: #007bff;
-    color: #fff;
-    border: none;
-    border-radius: 4px;
-    padding: 10px 20px;
-    cursor: pointer;
-    &:hover {
-      background-color: #0056b3;
-    }
+const WinnerImage = styled.div`
+  width: 60px;
+  height: 45px;
+  margin-right: 15px;
+  
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
   }
 `;
 
-const ClaimButton = styled.button`
-  background-color: #28a745;
-  color: #fff;
+const WinnerName = styled.div`
+  font-size: 1.2rem;
+  font-weight: bold;
+`;
+
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 15px;
+  margin-top: 30px;
+`;
+
+const Button = styled.button`
+  padding: 12px 25px;
   border: none;
-  border-radius: 4px;
-  padding: 10px 20px;
+  border-radius: 5px;
+  font-weight: bold;
   cursor: pointer;
+  transition: all 0.2s;
+  
   &:hover {
-    background-color: #218838;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
   }
 `;
 
-const NFTClaimButton = styled.button`
-  background-color: #ff8c00;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  padding: 10px 20px;
-  cursor: pointer;
+const PlayAgainButton = styled(Button)`
+  background-color: #4CAF50;
+  color: white;
+  
   &:hover {
-    background-color: #e07b00;
+    background-color: #45a049;
   }
 `;
 
-const LeaderboardSection = styled.div`
+const GoHomeButton = styled(Button)`
+  background-color: #333;
+  color: white;
+  
+  &:hover {
+    background-color: #444;
+  }
+`;
+
+// Get car image based on color
+const getCarImage = (color) => {
+  const carImages = {
+    '#ff0000': '/cars/car red.png',
+    '#ff8800': '/cars/car orange.png',
+    '#00ff00': '/cars/car green.png',
+    '#ffff00': '/cars/car yellow.png'
+  };
+  return carImages[color] || '/cars/car red.png';
+};
+
+// Format WND token amount
+const formatWND = (amount) => {
+  return `${amount.toLocaleString()} WND`;
+};
+
+// New styled components for the winner payout section
+const PayoutContainer = styled.div`
+  background-color: #e8f5e9;
+  border: 1px solid #66bb6a;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
   width: 100%;
   max-width: 800px;
-  background-color: #fff;
-  border-radius: 10px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+`;
 
-  h1 {
-    text-align: center;
-    color: #333;
+const PayoutTitle = styled.h3`
+  color: #2e7d32;
+  margin-bottom: 15px;
+`;
+
+const PayoutAmount = styled.div`
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 15px;
+`;
+
+const PayoutButton = styled(Button)`
+  background-color: #4caf50;
+  color: white;
+  
+  &:hover {
+    background-color: #388e3c;
+  }
+  
+  &:disabled {
+    background-color: #a5d6a7;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
   }
 `;
 
-const LeaderboardTable = styled.table`
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 20px;
-
-  th, td {
-    border: 1px solid #ddd;
-    padding: 8px;
-    text-align: left;
-  }
-
-  th {
-    background-color: #f2f2f2;
-    color: #333;
-  }
-
-  tr:nth-child(even) {
-    background-color: #f9f9f9;
-  }
-
-  tr:hover {
-    background-color: #ddd;
-  }
-`;
-
-const StyledConnectButton = styled(ConnectButton)`
-  margin-bottom: 20px;
-  .tw-connect-wallet {
-    background-color: #065c63;
-    color: #fff;
-    &:hover {
-      background-color: #043f4b;
-    }
-  }
-`;
-
-const CenteredImage = styled.img`
-  display: block;
-  margin: 20px auto;
-  width: 200px; /* Adjust the width as needed */
-  height: auto;
-`;
-
-const Timer = styled.div`
-  font-size: 24px;
-  color: #ff0000;
+const PayoutStatus = styled.div`
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 4px;
   text-align: center;
-  margin-top: 20px;
+  
+  ${props => props.success && `
+    background-color: #e8f5e9;
+    color: #2e7d32;
+  `}
+  
+  ${props => props.error && `
+    background-color: #ffebee;
+    color: #c62828;
+  `}
+  
+  ${props => props.warning && `
+    background-color: #fff8e1;
+    color: #f57c00;
+  `}
 `;
 
-const LeaderBoard = () => {
+// Add a FallbackMessage component for empty state
+const FallbackMessage = styled.div`
+  text-align: center;
+  padding: 30px;
+  background-color: #f9f9f9;
+  border-radius: 10px;
+  margin: 20px 0;
+  color: #666;
+  width: 100%;
+  max-width: 800px;
+  
+  h3 {
+    margin-bottom: 10px;
+    color: #333;
+  }
+`;
+
+// Add a LoadingSpinner component
+const LoadingSpinner = styled.div`
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  border-top: 4px solid #3498db;
+  width: 50px;
+  height: 50px;
+  animation: spin 1s linear infinite;
+  margin: 50px auto;
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+`;
+
+// Token claim section styling
+const TokenClaimContainer = styled.div`
+  background-color: #e3f2fd;
+  border: 1px solid #2196f3;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
+  width: 100%;
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+`;
+
+const TokenClaimTitle = styled.h3`
+  color: #0d47a1;
+  margin-bottom: 15px;
+`;
+
+const TokenClaimDetails = styled.div`
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 400px;
+  margin-bottom: 15px;
+  padding: 10px;
+  background-color: #bbdefb;
+  border-radius: 6px;
+`;
+
+const TokenLabel = styled.div`
+  font-weight: bold;
+  color: #0d47a1;
+`;
+
+const TokenValue = styled.div`
+  font-weight: bold;
+  color: #1565c0;
+`;
+
+const TokenClaimButton = styled(Button)`
+  background-color: #2196f3;
+  color: white;
+  
+  &:hover {
+    background-color: #1976d2;
+  }
+  
+  &:disabled {
+    background-color: #bbdefb;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+`;
+
+// Format token amount
+const formatTokens = (amount) => {
+  return `${amount} Game Tokens`;
+};
+
+const Leaderboard = () => {
+  const navigate = useNavigate();
   const location = useLocation();
-  const { state } = location;
-  const [leaderBoardData, setLeaderBoardData] = useState([]);
-  const [isDataAdded, setDataAdded] = useState(false);
-  const [winnerClaimed, setWinnerClaimed] = useState(true);
-  const activeAccount = useActiveAccount();
+  const { socket } = useContext(SocketContext);
+  const { activeAccount } = usePolkadotWallet();
   const address = activeAccount?.address;
-  const { mutate: sendTransaction } = useSendTransaction();
-  const [isProfileOpen, setProfileOpen] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(24 * 60 * 60); // 24 hours in seconds
-
-  const account = useActiveAccount();
-  const { data: balance, isLoading } = useWalletBalance({
-    client,
-    chain: myChain,
-    address: TOKEN_CONTRACT_ADDRESS,
-  });
-
-  const tokenContract = getContract({
-    client,
-    address: TOKEN_CONTRACT_ADDRESS,
-    chain: myChain,
-  });
-
+  
+  const [results, setResults] = useState([]);
+  const [winners, setWinners] = useState([]);
+  const [bets, setBets] = useState([]);
+  const [totalPool, setTotalPool] = useState(0);
+  const [userBets, setUserBets] = useState([]);
+  const [userWonBet, setUserWonBet] = useState(false);
+  const [winAmount, setWinAmount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // New state for payout
+  const [isPaying, setIsPaying] = useState(false);
+  const [payoutStatus, setPayoutStatus] = useState(null);
+  const [hasClaimed, setHasClaimed] = useState(false);
+  
+  // New state for token claim
+  const [isParticipant, setIsParticipant] = useState(false);
+  const [userCoins, setUserCoins] = useState(0);
+  const [isClaimingTokens, setIsClaimingTokens] = useState(false);
+  const [tokenClaimStatus, setTokenClaimStatus] = useState(null);
+  const [hasClaimedTokens, setHasClaimedTokens] = useState(false);
+  
+  // Use localStorage to track claims
   useEffect(() => {
-    getLeaderboardDataFromLocalStorage();
-    getTimerFromLocalStorage();
+    const betClaimed = localStorage.getItem('betPrizeClaimed');
+    if (betClaimed === 'true') {
+      setHasClaimed(true);
+    }
+    
+    const tokensClaimed = localStorage.getItem('gameTokensClaimed');
+    if (tokensClaimed === 'true') {
+      setHasClaimedTokens(true);
+    }
   }, []);
 
+  // Load data from socket
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft((prevTime) => {
-        const newTime = prevTime <= 1 ? 24 * 60 * 60 : prevTime - 1;
-        saveTimerToLocalStorage(newTime);
-        return newTime;
+    if (socket) {
+      setIsLoading(true);
+      console.log('Leaderboard mounted, requesting game results');
+      
+      // First try to request game results
+      socket.emit('requestGameResults');
+      
+      // Also join game to make sure we get any existing results
+      socket.emit('joinGame');
+      
+      // Add timeout to show loading state for at least 1 second
+      const loadingTimer = setTimeout(() => {
+        setIsLoading(false);
+      }, 1000);
+      
+      // Handle receiving game results
+      socket.on('gameResults', (data) => {
+        console.log('Received game results:', data);
+        
+        if (data.results && data.results.length > 0) {
+          setResults(data.results);
+          
+          // Set winners if present
+          if (data.winners && data.winners.length > 0) {
+            setWinners(data.winners);
+          } else {
+            // If no winners specified, assume top 3 from results
+            setWinners(data.results.slice(0, Math.min(3, data.results.length)));
+          }
+          
+          // Set betting data
+          if (data.bets) setBets(data.bets);
+          if (data.totalPool) setTotalPool(data.totalPool);
+          
+          // Check if current user was a participant
+          if (address) {
+            // Find user in results to determine if they were a participant
+            const userResult = data.results.find(player => player.address === address);
+            if (userResult) {
+              setIsParticipant(true);
+              setUserCoins(userResult.coinCount || 0);
+              console.log(`User was a participant with ${userResult.coinCount} coins collected`);
+            } else {
+              // Force set a participant flag if we see user is in the results
+              // This is a fallback in case the address matching fails
+              const foundPlayer = data.results.find(player => 
+                player.name?.includes('You') || 
+                (player.id === socket.id)
+              );
+              
+              if (foundPlayer) {
+                setIsParticipant(true);
+                setUserCoins(foundPlayer.coinCount || 0);
+                console.log(`User identified as participant with ${foundPlayer.coinCount} coins`);
+              }
+            }
+            
+            // Process user's bets if they're logged in
+            if (data.bets) {
+              // Find all bets placed by the current user
+              const myBets = data.bets.filter(bet => bet.betterAddress === address);
+              setUserBets(myBets);
+              
+              // Check if any of the user's bets were on winners
+              if (myBets.length > 0 && data.results.length > 0) {
+                const winningPlayerId = data.results[0].id; // First place winner
+                
+                // Find if user bet on the winner
+                const winningBet = myBets.find(bet => bet.targetPlayerId === winningPlayerId);
+                
+                if (winningBet) {
+                  // Calculate winnings (simple version - just double the bet)
+                  // In a real implementation, you might use a more complex formula
+                  const winningAmount = winningBet.amount * 2;
+                  
+                  setUserWonBet(true);
+                  setWinAmount(winningAmount);
+                  console.log(`User won bet! Amount: ${winningAmount}`);
+                }
+              }
+            }
+          }
+          
+          setIsLoading(false);
+        } else {
+          console.log('No results data in response:', data);
+        }
       });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  const getLeaderboardDataFromLocalStorage = () => {
-    const storedData = localStorage.getItem('leaderboard');
-    if (storedData) {
-      const leaderboardData = JSON.parse(storedData);
-      leaderboardData.sort((a, b) => a.finishLineFrame - b.finishLineFrame);
-      setLeaderBoardData(leaderboardData);
+      
+      // Set up a retry mechanism if no data received within 2 seconds
+      const retryTimer = setTimeout(() => {
+        if (results.length === 0) {
+          console.log('No results received yet, retrying...');
+          socket.emit('requestGameResults');
+          socket.emit('joinGame');
+        }
+      }, 2000);
+      
+      return () => {
+        socket.off('gameResults');
+        clearTimeout(retryTimer);
+        clearTimeout(loadingTimer);
+      };
     }
-  };
+  }, [socket, address]);
 
-  const addDataToLocalStorage = (data) => {
-    const storedData = localStorage.getItem('leaderboard');
-    const leaderboardData = storedData ? JSON.parse(storedData) : [];
-    leaderboardData.push(data);
-    leaderboardData.sort((a, b) => a.finishLineFrame - b.finishLineFrame);
-    localStorage.setItem('leaderboard', JSON.stringify(leaderboardData));
-    setLeaderBoardData(leaderboardData);
-  };
-
-  const getTimerFromLocalStorage = () => {
-    const storedTime = localStorage.getItem('timer');
-    if (storedTime) {
-      setTimeLeft(parseInt(storedTime, 10));
-    }
-  };
-
-  const saveTimerToLocalStorage = (time) => {
-    localStorage.setItem('timer', time.toString());
-  };
-
+  // Add effect to check for results in location state (passed from game component)
   useEffect(() => {
-    if (address && !isDataAdded) {
-      if (leaderBoardData.find(entry => entry.Wallet_Address === address)) {
-        return;
+    if (location.state?.results) {
+      console.log('Found results in location state:', location.state.results);
+      setResults(location.state.results);
+      
+      if (location.state.winners) {
+        setWinners(location.state.winners);
+      } else if (location.state.results.length > 0) {
+        // If no winners specified, assume top 3
+        setWinners(location.state.results.slice(0, Math.min(3, location.state.results.length)));
       }
-      if (state && state.points && state.finishLineFrame) {
-        const { points, finishLineFrame } = state;
-        const seconds = ((finishLineFrame + 100) / 30).toFixed(2);
-        const currentTime = moment().tz('America/New_York').format();
-        const newEntry = {
-          Wallet_Address: address,
-          Coins: points,
-          Time: seconds,
-          finishLineFrame: finishLineFrame,
-          winnerClaimed: true,
-          Timestamp: currentTime,
-        };
-        addDataToLocalStorage(newEntry);
-        setDataAdded(true);
+      
+      if (location.state.bets) setBets(location.state.bets);
+      if (location.state.totalPool) setTotalPool(location.state.totalPool);
+      
+      // Check if current user was a participant
+      if (address && location.state.results) {
+        // Find user in results to determine if they were a participant
+        const userResult = location.state.results.find(player => player.address === address);
+        if (userResult) {
+          setIsParticipant(true);
+          setUserCoins(userResult.coinCount || 0);
+          console.log(`User was a participant with ${userResult.coinCount} coins collected`);
+        }
       }
+      
+      setIsLoading(false);
     }
-  }, [address, isDataAdded, state, leaderBoardData]);
+  }, [location.state, address]);
 
-  const handleERC20 = async () => {
-    const transaction = prepareContractCall({
-      contract: tokenContract,
-      method: "function mintTo(address to, uint256 amount)",
-      params: [address, 10], // Adjust the amount as needed
-    });
-    sendTransaction(transaction, {
-      onSuccess: (tx) => console.log("Transaction successful:", tx),
-      onError: (error) => console.error("Transaction failed:", error),
-    });
+  // Handle navigation
+  const handlePlayAgain = () => {
+    navigate('/lobby');
   };
 
-  const formatTime = (seconds) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${hrs}:${mins}:${secs}`;
+  const handleGoHome = () => {
+    navigate('/');
+  };
+  
+  // Handle claiming the bet prize
+  const handleClaimPrize = async () => {
+    if (!address || !userWonBet || winAmount <= 0 || hasClaimed) return;
+    
+    try {
+      setIsPaying(true);
+      setPayoutStatus(null);
+      
+      // Log the payout attempt
+      console.log(`Attempting to pay ${winAmount} WND to address: ${address}`);
+      
+      // Call the payout function
+      const result = await payoutWinner(address, winAmount);
+      console.log('Payout result:', result);
+      
+      if (result.success) {
+        // Check if transfer was actually confirmed
+        if (result.transferConfirmed) {
+          setPayoutStatus({
+            success: true,
+            message: `Successfully claimed ${winAmount} WND! Your wallet has been credited.`
+          });
+          toast.success(`Successfully claimed ${winAmount} WND!`);
+          
+          // Mark as claimed in localStorage
+          localStorage.setItem('betPrizeClaimed', 'true');
+          setHasClaimed(true);
+        } else {
+          // Transaction was successful but transfer event not confirmed
+          setPayoutStatus({
+            warning: true,
+            message: `Transaction processed but transfer not confirmed. Please check your wallet balance.`
+          });
+          toast.warning(`Transaction processed, please check your wallet balance.`);
+        }
+      } else {
+        setPayoutStatus({
+          error: true,
+          message: `Failed to claim: ${result.error}`
+        });
+        toast.error(`Failed to claim: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error claiming prize:', error);
+      setPayoutStatus({
+        error: true,
+        message: `Error: ${error.message || 'Unknown error'}`
+      });
+      toast.error(`Error: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsPaying(false);
+    }
+  };
+  
+  // Handle claiming game tokens
+  const handleClaimGameTokens = async () => {
+    if (!address) {
+      toast.error("Please connect your wallet to claim tokens");
+      return;
+    }
+    
+    // Get the coins count to use for the token claim
+    const coinsToUse = userCoins > 0 ? userCoins : 
+      results.find(p => p.address === address)?.coinCount || 
+      results[0].coinCount;
+    
+    if (coinsToUse <= 0) {
+      toast.error("Cannot claim tokens without coins");
+      return;
+    }
+    
+    if (hasClaimedTokens) {
+      toast.info("You have already claimed your tokens");
+      return;
+    }
+    
+    try {
+      setIsClaimingTokens(true);
+      setTokenClaimStatus(null);
+      
+      // Log the token disbursement attempt
+      console.log(`Attempting to disburse tokens for ${coinsToUse} coins to address: ${address}`);
+      toast.info("Processing your token claim...");
+      
+      // Call the token disbursement function
+      const result = await disburseTokensToParticipant(address, coinsToUse);
+      console.log('Token disbursement result:', result);
+      
+      if (result && result.success) {
+        const tokenAmount = result.transferAmount || (10 + coinsToUse);
+        
+        setTokenClaimStatus({
+          success: true,
+          message: `Successfully claimed ${tokenAmount} game tokens!`
+        });
+        
+        toast.success(`Successfully claimed ${tokenAmount} game tokens!`);
+        
+        // Mark as claimed in localStorage
+        localStorage.setItem('gameTokensClaimed', 'true');
+        setHasClaimedTokens(true);
+        
+        // Emit socket event to notify server about token claim
+        if (socket) {
+          socket.emit('tokensClaimed', {
+            address,
+            coinsCollected: coinsToUse,
+            tokensReceived: tokenAmount
+          });
+        }
+      } else {
+        const errorMsg = result?.error || 'Unknown error occurred';
+        setTokenClaimStatus({
+          error: true,
+          message: `Failed to claim tokens: ${errorMsg}`
+        });
+        toast.error(`Failed to claim game tokens: ${errorMsg}`);
+      }
+    } catch (error) {
+      console.error('Error claiming game tokens:', error);
+      setTokenClaimStatus({
+        error: true,
+        message: `Error: ${error.message || 'Unknown error'}`
+      });
+      toast.error(`Error processing token claim: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsClaimingTokens(false);
+    }
   };
 
   return (
     <Container>
-      <StyledConnectButton
-        theme={"light"}
-        btnTitle={"Login"}
-        modalTitle={"Select a Wallet"}
-        modalSize={"compact"}
-        modalTitleIconUrl={""}
-        dropdownPosition={{
-          side: "left",
-          align: "end",
-        }}
-        client={client}
-        wallets={wallets}
-      />
-      <ProfileContainer>
-        <ProfileHeader>
-          <Link to="/" style={{ textDecoration: 'none', marginRight: '10px' }}><h2>Your Profile</h2></Link>
-          <button onClick={() => setProfileOpen(!isProfileOpen)}>
-            {isProfileOpen ? 'Close' : 'Open'}
-          </button>
-        </ProfileHeader>
-        {isProfileOpen && (
-          <>
-            {address && (
-              <>
-                <ClaimButton onClick={handleERC20}>Claim</ClaimButton>
-              </>
-            )}
-          </>
-        )}
-      </ProfileContainer>
-      <LeaderboardSection>
-        <h1>Leaderboard</h1>
-        {winnerClaimed ? (
-          <>
-            <CenteredImage src={TrophyImage} alt="Trophy" />
-            <Timer>{formatTime(timeLeft)}</Timer>
-            <p>Winner Can Claim</p>
-            {address && leaderBoardData.length > 0 && leaderBoardData[0].Wallet_Address === address && (
-              <NFTClaimButton
-                onClick={() => {
-                  alert("NFT claimed");
-                  setWinnerClaimed(false);
-                }}
+      <ToastContainer position="top-right" autoClose={5000} />
+      
+      <HeaderContainer>
+        <WalletSection>
+          <PolkadotConnectButton btnTitle="Connect Wallet" />
+        </WalletSection>
+        
+        <Header>
+          <Title>Race Results</Title>
+          <Subtitle>Final standings and rewards</Subtitle>
+        </Header>
+      </HeaderContainer>
+      
+      {isLoading ? (
+        <FallbackMessage>
+          <LoadingSpinner />
+          <p>Loading race results...</p>
+        </FallbackMessage>
+      ) : (
+        <>
+          {/* Winners section */}
+          {winners.length > 0 && (
+            <WinnerHighlight>
+              <WinnerInfo>
+                <WinnerImage>
+                  <img src={getCarImage(winners[0].carColor)} alt="Winner car" />
+                </WinnerImage>
+                <WinnerName>Winner: {winners[0].name}</WinnerName>
+              </WinnerInfo>
+              <CoinCount>{winners[0].coinCount} coins</CoinCount>
+            </WinnerHighlight>
+          )}
+          
+          {/* Leaderboard table or empty message */}
+          {results.length > 0 ? (
+            <LeaderboardTable>
+              <TableHeader>
+                <div>Rank</div>
+                <div>Player</div>
+                <div>Coins</div>
+                <div>Bet Result</div>
+              </TableHeader>
+              
+              {results.map((player, index) => {
+                const isCurrentUser = player.address === address;
+                const isWinner = index === 0;
+                const userBetOnThisPlayer = userBets.some(bet => bet.targetPlayerId === player.id);
+                const betResult = userBetOnThisPlayer ? (isWinner ? 'Won' : 'Lost') : '';
+                
+                return (
+                  <TableRow key={player.id} isWinner={isWinner} isUser={isCurrentUser}>
+                    <Rank top3={index < 3}>{index + 1}</Rank>
+                    <PlayerInfo>
+                      <CarIcon>
+                        <img src={getCarImage(player.carColor)} alt="Player car" />
+                      </CarIcon>
+                      <PlayerName isUser={isCurrentUser}>
+                        {player.name} {isCurrentUser && '(You)'}
+                      </PlayerName>
+                    </PlayerInfo>
+                    <CoinCount>{player.coinCount}</CoinCount>
+                    <BetResult win={betResult === 'Won'} lose={betResult === 'Lost'}>
+                      {betResult}
+                    </BetResult>
+                  </TableRow>
+                );
+              })}
+            </LeaderboardTable>
+          ) : (
+            <FallbackMessage>
+              <h3>No Race Results</h3>
+              <p>There are no results to display yet. The race may still be in progress.</p>
+            </FallbackMessage>
+          )}
+          
+          {/* Token Claim Section - show for all players with coins */}
+          {results.length > 0 && (
+            <TokenClaimContainer>
+              <TokenClaimTitle>Claim Your Game Tokens</TokenClaimTitle>
+              
+              {!address ? (
+                <div style={{ marginBottom: '15px', color: '#f44336' }}>
+                  Please connect your wallet to claim tokens
+                </div>
+              ) : (
+                <>
+                  <TokenClaimDetails>
+                    <TokenLabel>Coins Available:</TokenLabel>
+                    <TokenValue>{userCoins > 0 ? userCoins : 
+                      results.find(p => p.address === address)?.coinCount || 
+                      results[0].coinCount}</TokenValue>
+                  </TokenClaimDetails>
+                  
+                  <TokenClaimDetails>
+                    <TokenLabel>Tokens to Receive:</TokenLabel>
+                    <TokenValue>{formatTokens(10 + (userCoins > 0 ? userCoins : 
+                      results.find(p => p.address === address)?.coinCount || 
+                      results[0].coinCount))}</TokenValue>
+                  </TokenClaimDetails>
+                  
+                  <TokenClaimButton 
+                    onClick={handleClaimGameTokens} 
+                    disabled={isClaimingTokens || hasClaimedTokens}
+                  >
+                    {isClaimingTokens ? 'Processing...' : hasClaimedTokens ? 'Tokens Claimed' : 'Claim Game Tokens'}
+                  </TokenClaimButton>
+                </>
+              )}
+              
+              {tokenClaimStatus && (
+                <PayoutStatus success={tokenClaimStatus.success} error={tokenClaimStatus.error}>
+                  {tokenClaimStatus.message}
+                </PayoutStatus>
+              )}
+            </TokenClaimContainer>
+          )}
+          
+          {/* Betting results */}
+          {bets.length > 0 && (
+            <BettingResults>
+              <BetTitle>Betting Results</BetTitle>
+              <TotalPool>Total Betting Pool: {formatWND(totalPool)}</TotalPool>
+              
+              {bets.map((bet, index) => {
+                const isCurrentUser = bet.betterAddress === address;
+                const betOnWinner = winners.length > 0 && bet.targetPlayerId === winners[0].id;
+                
+                return (
+                  <BetItem key={`${bet.id || index}`}>
+                    <BetAddress isUser={isCurrentUser}>
+                      {isCurrentUser ? 'You' : `${bet.betterAddress.substring(0, 8)}...${bet.betterAddress.substring(bet.betterAddress.length - 4)}`}
+                      {' -> '}
+                      {results.find(p => p.id === bet.targetPlayerId)?.name || bet.targetPlayerId.substring(0, 6)}
+                      {betOnWinner && ' ✓'}
+                    </BetAddress>
+                    <BetAmount>{formatWND(bet.amount)}</BetAmount>
+                  </BetItem>
+                );
+              })}
+            </BettingResults>
+          )}
+          
+          {/* Winner payout section - only show for the user who won a bet */}
+          {userWonBet && address && (
+            <PayoutContainer>
+              <PayoutTitle>You won your bet!</PayoutTitle>
+              <PayoutAmount>{formatWND(winAmount)}</PayoutAmount>
+              
+              <PayoutButton 
+                onClick={handleClaimPrize} 
+                disabled={isPaying || hasClaimed}
               >
-                Claim NFT
-              </NFTClaimButton>
-            )}
-          </>
-        ) : (
-          <h1 style={{ textAlign: 'center', width: '100%', margin: '0 auto !important' }}>Winner Claimed the NFT</h1>
-        )}
-        <LeaderboardTable>
-          <thead>
-            <tr>
-              <th>Rank</th>
-              <th>Wallet Address</th>
-              <th>Coins</th>
-              <th>Time (Seconds)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {leaderBoardData.map((entry, index) => (
-              <tr key={index}>
-                <td>{index + 1}</td>
-                <td>{entry.Wallet_Address}</td>
-                <td>{entry.Coins}</td>
-                <td>{entry.Time}</td>
-              </tr>
-            ))}
-          </tbody>
-        </LeaderboardTable>
-      </LeaderboardSection>
+                {isPaying ? 'Processing...' : hasClaimed ? 'Prize Claimed' : 'Claim Prize'}
+              </PayoutButton>
+              
+              {payoutStatus && (
+                <PayoutStatus success={payoutStatus.success} error={payoutStatus.error} warning={payoutStatus.warning}>
+                  {payoutStatus.message}
+                </PayoutStatus>
+              )}
+            </PayoutContainer>
+          )}
+        </>
+      )}
+      
+      <ButtonGroup>
+        <Button onClick={handlePlayAgain} style={{ backgroundColor: '#4CAF50', color: 'white' }}>
+          Play Again
+        </Button>
+        <Button onClick={handleGoHome} style={{ backgroundColor: '#2196F3', color: 'white' }}>
+          Back to Home
+        </Button>
+      </ButtonGroup>
     </Container>
   );
 };
 
-export default LeaderBoard;
+export default Leaderboard;
