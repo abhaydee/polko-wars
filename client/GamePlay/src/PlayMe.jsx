@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useContext } from "react";
 import { Canvas } from "@react-three/fiber";
 import { Scene } from "./Scene";
 import { Physics } from "@react-three/cannon";
@@ -10,7 +10,8 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { usePolkadotWallet } from './PolkadotWalletContext';
 import PolkadotConnectButton from './components/PolkadotConnectButton';
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { SocketContext } from './SocketContext';
 
 const Container = styled.div`
   position: relative;
@@ -42,11 +43,14 @@ const PointsDisplay = styled.div`
 const PlayMe = ({ importedData }) => {
   const drawRef = useRef();
   const [points, setPoints] = useState(0);
-  const [timer, setTimer] = useState(60);
+  const [timer, setTimer] = useState(120); // 2 minutes (default)
   const [gameStarted, setGameStarted] = useState(false);
   const { activeAccount } = usePolkadotWallet();
   const address = activeAccount?.address;
   const location = useLocation();
+  const { socket } = useContext(SocketContext);
+  const navigate = useNavigate();
+  const [localTimerActive, setLocalTimerActive] = useState(false); // Track if local timer is active
   
   // Get car color from navigation state or use a default
   const carColor = location?.state?.carColor || localStorage.getItem('carColor') || '#ff0000';
@@ -59,15 +63,45 @@ const PlayMe = ({ importedData }) => {
     setPoints(newPoints / 2);
   };
 
+  // Listen for server's game time updates
   useEffect(() => {
-    if (gameStarted && timer > 0) {
+    if (socket) {
+      socket.on('gameTimeUpdate', (data) => {
+        console.log('Received game time update from server:', data);
+        if (data.timeLeft !== undefined) {
+          // Sync local timer with server
+          setTimer(data.timeLeft);
+          
+          // Ensure game has started
+          if (!gameStarted && data.isActive) {
+            setGameStarted(true);
+          }
+        }
+      });
+      
+      // Request current game time on connect
+      socket.emit('joinGame');
+      
+      return () => {
+        socket.off('gameTimeUpdate');
+      };
+    }
+  }, [socket, gameStarted]);
+
+  // Local timer for updates between server syncs
+  useEffect(() => {
+    if (gameStarted && timer > 0 && !localTimerActive) {
+      setLocalTimerActive(true);
       const interval = setInterval(() => {
-        setTimer((prevTimer) => prevTimer - 1);
+        setTimer((prevTimer) => Math.max(0, prevTimer - 1));
       }, 1000);
 
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(interval);
+        setLocalTimerActive(false);
+      };
     }
-  }, [gameStarted, timer]);
+  }, [gameStarted, timer, localTimerActive]);
 
   const notify = (message) => {
     toast.info(message, {
@@ -83,15 +117,31 @@ const PlayMe = ({ importedData }) => {
 
   useEffect(() => {
     if (timer === 0) {
-      notify("Time's up! The game will restart.");
+      notify("Time's up! Redirecting to results...");
       setGameStarted(false);
+      
+      // Wait a brief moment to show the notification, then navigate to leaderboard
       setTimeout(() => {
-        setTimer(60);
-        setPoints(0);
-        setGameStarted(true);
-      }, 5000);
+        navigate('/leaderboard');
+      }, 2000);
     }
-  }, [timer]);
+  }, [timer, navigate]);
+
+  useEffect(() => {
+    // Listen for game end event
+    if (socket) {
+      socket.on('gameEnd', () => {
+        console.log('Game ended, redirecting to leaderboard');
+        navigate('/leaderboard');
+      });
+    }
+
+    return () => {
+      if (socket) {
+        socket.off('gameEnd');
+      }
+    };
+  }, [socket, navigate]);
 
   return (
     <CarPositionProvider>

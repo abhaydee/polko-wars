@@ -411,7 +411,15 @@ const WaitingArena = () => {
       
       // Listen for the start game event
       socket.on('startGame', () => {
-        navigate('/play-me', { state: { carColor: selectedCarColor } });
+        // Only redirect to play-me if the user is a participant
+        if (isParticipant) {
+          navigate('/play-me', { state: { carColor: selectedCarColor } });
+        } else {
+          // For spectators, redirect directly to the leaderboard to watch results
+          navigate('/leaderboard');
+          // Optionally show a toast or notification
+          console.log('You are in spectator mode. Redirecting to leaderboard...');
+        }
       });
       
       // Cleanup listeners
@@ -422,7 +430,7 @@ const WaitingArena = () => {
         socket.emit('leaveWaitingArena');
       };
     }
-  }, [socket, navigate, location.state, carColor, address, playerNFTs]);
+  }, [socket, navigate, location.state, carColor, address, playerNFTs, isParticipant]);
 
   // Fetch player's NFTs
   useEffect(() => {
@@ -519,9 +527,10 @@ const WaitingArena = () => {
     // Create a map of player IDs to avoid duplicates
     const playersMap = new Map();
     
-    // First add registered players from waiting room
+    // First add registered players from waiting room (only participants, not spectators)
     registeredPlayers.forEach(player => {
-      if (player.id !== socket?.id) { // Skip self
+      // Only add if they are a race participant and not the current user
+      if (player.id !== socket?.id && player.isParticipant === true) {
         playersMap.set(player.id, {
           ...player,
           source: 'waiting-room'
@@ -529,13 +538,20 @@ const WaitingArena = () => {
       }
     });
     
-    // Then add remote players, overriding waiting room data if exists
+    // Then add remote players who are participants, overriding waiting room data if exists
     Object.values(remotePlayers).forEach(player => {
-      playersMap.set(player.id, {
-        ...player,
-        source: 'remote',
-        ready: true // Remote players are considered ready
-      });
+      // Check if this player is a participant from the registeredPlayers list
+      const isParticipant = registeredPlayers.some(p => p.id === player.id && p.isParticipant === true);
+      
+      // Only add if they are actually participating in the race
+      if (isParticipant) {
+        playersMap.set(player.id, {
+          ...player,
+          source: 'remote',
+          ready: true, // Remote players are considered ready
+          isParticipant: true
+        });
+      }
     });
     
     // Convert map back to array

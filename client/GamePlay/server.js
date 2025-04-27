@@ -32,6 +32,17 @@ const waitingRoom = {
   totalPool: 0 // Total betting pool
 };
 
+// Active game state
+const gameState = {
+  isActive: false,
+  startTime: null,
+  gameDuration: 2 * 60, // 2 minutes in seconds
+  timeLeft: 2 * 60,
+  players: [],
+  timeUpdateInterval: null,
+  results: [] // Will hold the final results after game ends
+};
+
 // Start the waiting room timer
 function startWaitingRoomTimer() {
   if (waitingRoom.timerActive) return;
@@ -119,6 +130,15 @@ function startGame() {
     // We'll handle bet resolution after the race
   }
   
+  // Copy race participants to game state
+  gameState.players = waitingRoom.players.filter(player => player.isParticipant).map(player => ({
+    id: player.id,
+    name: player.name,
+    address: player.address,
+    carColor: player.carColor,
+    collectedCoins: 0
+  }));
+  
   // Mark all players as ready
   waitingRoom.players.forEach(player => {
     player.ready = true;
@@ -126,6 +146,14 @@ function startGame() {
   
   // Notify all clients the game is starting
   io.emit('startGame');
+  
+  // Prepare for active game
+  gameState.isActive = true;
+  gameState.startTime = Date.now();
+  gameState.timeLeft = gameState.gameDuration;
+  
+  // Start the game timer
+  startGameTimer();
   
   // Reset waiting room after 5 seconds
   setTimeout(() => {
@@ -135,6 +163,102 @@ function startGame() {
     // Don't reset bets here, they'll be processed after the race
     console.log('Waiting room reset');
   }, 5000);
+}
+
+// Start the 2-minute game timer
+function startGameTimer() {
+  if (gameState.timeUpdateInterval) {
+    clearInterval(gameState.timeUpdateInterval);
+  }
+  
+  console.log(`Game timer started. ${gameState.gameDuration} seconds until game ends.`);
+  
+  gameState.timeUpdateInterval = setInterval(() => {
+    const elapsedSeconds = Math.floor((Date.now() - gameState.startTime) / 1000);
+    gameState.timeLeft = Math.max(0, gameState.gameDuration - elapsedSeconds);
+    
+    // Broadcast time updates every 5 seconds
+    if (elapsedSeconds % 5 === 0 || gameState.timeLeft <= 10) {
+      io.emit('gameTimeUpdate', {
+        timeLeft: gameState.timeLeft,
+        totalTime: gameState.gameDuration
+      });
+    }
+    
+    // When 10 seconds remain, notify players game is about to end
+    if (gameState.timeLeft === 10) {
+      console.log('Game ending in 10 seconds!');
+      io.emit('gameEnding', { timeLeft: 10 });
+    }
+    
+    // When time runs out, end the game
+    if (gameState.timeLeft <= 0) {
+      clearInterval(gameState.timeUpdateInterval);
+      gameState.timeUpdateInterval = null;
+      endGame();
+    }
+  }, 1000);
+}
+
+// End the game and calculate results
+function endGame() {
+  console.log('Game ended!');
+  gameState.isActive = false;
+  
+  // Calculate final results based on coins collected
+  const playerResults = [];
+  
+  // Get all player results
+  Object.keys(players).forEach(playerId => {
+    const player = players[playerId];
+    
+    if (player && player.collectedCoins) {
+      playerResults.push({
+        id: playerId,
+        name: player.name || `Player ${playerId.substring(0, 6)}`,
+        address: player.address || 'anonymous',
+        carColor: player.carColor,
+        coinCount: player.collectedCoins.length || 0,
+        coins: player.collectedCoins || []
+      });
+    }
+  });
+  
+  // Sort by coin count (highest first)
+  playerResults.sort((a, b) => b.coinCount - a.coinCount);
+  
+  // Store results
+  gameState.results = playerResults;
+  
+  // Calculate winners for bets
+  const winners = playerResults.length > 0 ? playerResults.slice(0, 3) : [];
+  const winningIds = winners.map(w => w.id);
+  
+  console.log('Game Results:');
+  console.log(playerResults);
+  
+  // Handle betting payouts here (placeholder)
+  if (waitingRoom.bets.length > 0 && winners.length > 0) {
+    console.log(`Processing payouts for ${waitingRoom.bets.length} bets`);
+    // Future: implement actual payout to wallets
+  }
+  
+  // Send results to all players
+  io.emit('gameResults', {
+    results: playerResults,
+    winners: winners,
+    bets: waitingRoom.bets,
+    totalPool: waitingRoom.totalPool
+  });
+  
+  // Reset coin collections for next game
+  Object.keys(collectedCoins).forEach(coinId => {
+    delete collectedCoins[coinId];
+  });
+  
+  // Reset bets after processing
+  waitingRoom.bets = [];
+  waitingRoom.totalPool = 0;
 }
 
 // Debug helper function
@@ -456,6 +580,26 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Handle player joining ongoing game
+  socket.on('joinGame', (data) => {
+    if (gameState.isActive) {
+      // Send current game state to new player
+      socket.emit('gameTimeUpdate', {
+        timeLeft: gameState.timeLeft,
+        totalTime: gameState.gameDuration,
+        isActive: true
+      });
+    } else if (gameState.results.length > 0) {
+      // If game just ended, send results
+      socket.emit('gameResults', {
+        results: gameState.results,
+        winners: gameState.results.slice(0, 3),
+        bets: waitingRoom.bets,
+        totalPool: waitingRoom.totalPool
+      });
+    }
+  });
+  
   // Handle coin collection
   socket.on('coinCollected', (data) => {
     if (!data || typeof data.coinIndex !== 'number') {
@@ -468,6 +612,12 @@ io.on('connection', (socket) => {
     const playerName = players[playerId]?.name || playerId.substring(0, 6);
     
     console.log(`Player ${playerName} collected coin ${coinIndex}`);
+    
+    // Only allow coin collection if game is active
+    if (!gameState.isActive) {
+      console.log(`Rejected coin collection - game not active`);
+      return;
+    }
     
     // Store which player collected this coin
     collectedCoins[coinIndex] = {
