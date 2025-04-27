@@ -16,6 +16,8 @@ const io = new Server(server, {
 
 // Store connected players
 const players = {};
+// Track coin collection globally
+const collectedCoins = {};
 let updateCounter = 0;
 
 // Debug helper function
@@ -64,7 +66,8 @@ io.on('connection', (socket) => {
     position: { x: -1, y: 0, z: -0.2 }, // Default position
     rotation: { x: 0, y: 0, z: 0 },
     controls: {},
-    lastUpdate: Date.now()
+    lastUpdate: Date.now(),
+    collectedCoins: [] // Track coins collected by this player
   };
   
   // Log player count
@@ -73,6 +76,10 @@ io.on('connection', (socket) => {
   // Send existing players to the new player
   socket.emit('currentPlayers', players);
   console.log(`Sent current players to ${socket.id}: `, Object.keys(players));
+  
+  // Send already collected coins to the new player
+  socket.emit('currentCollectedCoins', collectedCoins);
+  console.log(`Sent collected coins to ${socket.id}`);
   
   // Broadcast new player to all other players
   socket.broadcast.emit('newPlayer', players[socket.id]);
@@ -126,6 +133,45 @@ io.on('connection', (socket) => {
       } else {
         console.error(`Received invalid movement data from ${socket.id}:`, data);
       }
+    }
+  });
+
+  // Handle coin collection
+  socket.on('coinCollected', (data) => {
+    if (!data || typeof data.coinIndex !== 'number') {
+      console.error(`Received invalid coin data from ${socket.id}:`, data);
+      return;
+    }
+    
+    const coinIndex = data.coinIndex;
+    const playerId = socket.id;
+    const playerName = players[playerId]?.name || playerId.substring(0, 6);
+    
+    console.log(`Player ${playerName} collected coin ${coinIndex}`);
+    
+    // Store which player collected this coin
+    collectedCoins[coinIndex] = {
+      playerId: playerId,
+      playerName: playerName,
+      collectedAt: Date.now()
+    };
+    
+    // Update player's collected coins
+    if (players[playerId]) {
+      if (!players[playerId].collectedCoins) {
+        players[playerId].collectedCoins = [];
+      }
+      players[playerId].collectedCoins.push(coinIndex);
+      
+      // Broadcast to all players that this coin was collected
+      io.emit('coinCollectionUpdated', {
+        coinIndex,
+        collector: {
+          id: playerId,
+          name: playerName
+        },
+        allCollectedCoins: collectedCoins
+      });
     }
   });
 

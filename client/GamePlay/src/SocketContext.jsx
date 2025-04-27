@@ -8,6 +8,7 @@ export const SocketContext = createContext(null);
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [remotePlayers, setRemotePlayers] = useState({});
+  const [collectedCoins, setCollectedCoins] = useState({});
 
   // Helper to update a specific player's data
   const updatePlayerData = useCallback((playerId, newData) => {
@@ -101,6 +102,23 @@ export const SocketProvider = ({ children }) => {
       });
     };
 
+    // Handle receiving the current state of collected coins
+    const handleCurrentCollectedCoins = (coins) => {
+      console.log('Received current collected coins:', coins);
+      setCollectedCoins(coins);
+    };
+
+    // Handle real-time coin collection updates
+    const handleCoinCollectionUpdated = (data) => {
+      console.log('Coin collection updated:', data);
+      setCollectedCoins(data.allCollectedCoins);
+      
+      // We could also display a toast or some UI notification here
+      if (data.collector.id !== newSocket.id) {
+        console.log(`Player ${data.collector.id} collected coin ${data.coinIndex}`);
+      }
+    };
+
     // Add event listeners
     newSocket.on('connect', handleConnect);
     newSocket.on('disconnect', handleDisconnect);
@@ -108,6 +126,8 @@ export const SocketProvider = ({ children }) => {
     newSocket.on('newPlayer', handleNewPlayer);
     newSocket.on('playerMoved', handlePlayerMoved);
     newSocket.on('playerDisconnected', handlePlayerDisconnected);
+    newSocket.on('currentCollectedCoins', handleCurrentCollectedCoins);
+    newSocket.on('coinCollectionUpdated', handleCoinCollectionUpdated);
 
     // Clean up on unmount
     return () => {
@@ -117,6 +137,8 @@ export const SocketProvider = ({ children }) => {
       newSocket.off('newPlayer', handleNewPlayer);
       newSocket.off('playerMoved', handlePlayerMoved);
       newSocket.off('playerDisconnected', handlePlayerDisconnected);
+      newSocket.off('currentCollectedCoins', handleCurrentCollectedCoins);
+      newSocket.off('coinCollectionUpdated', handleCoinCollectionUpdated);
       newSocket.disconnect();
     };
   }, [updatePlayerData]);
@@ -145,8 +167,16 @@ export const SocketProvider = ({ children }) => {
     return () => clearInterval(cleanupInterval);
   }, []);
 
+  // Helper function to collect a coin
+  const collectCoin = useCallback((coinIndex) => {
+    if (socket) {
+      console.log(`Sending coin collection: ${coinIndex}`);
+      socket.emit('coinCollected', { coinIndex });
+    }
+  }, [socket]);
+
   return (
-    <SocketContext.Provider value={{ socket, remotePlayers }}>
+    <SocketContext.Provider value={{ socket, remotePlayers, collectedCoins, collectCoin }}>
       {children}
     </SocketContext.Provider>
   );
