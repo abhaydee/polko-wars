@@ -249,18 +249,19 @@ export function Scene({ onFinishLinePickup, onPickup, setGameStarted, notify }) 
       
       {/* Render all coins, with special effects for collected ones */}
       {coins.map((position, index) => {
-        const isCollected = collectedCoinsLocal.includes(index);
         const playerColor = getCoinPlayerColor(index);
+        const isCollected = collectedCoins && collectedCoins[index];
         
         return (
           <group key={index}>
+            {/* Always render the coin - it will hide itself if collected */}
             <Coin 
               position={position} 
               onPickup={() => handlePickup(index)} 
               index={index} 
             />
             
-            {/* Show indicator for collected coins */}
+            {/* Only show collector indicator if the coin is collected */}
             {isCollected && playerColor && (
               <group>
                 {/* Circle around the coin to show it's collected */}
