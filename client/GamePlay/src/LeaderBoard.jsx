@@ -4,8 +4,10 @@ import styled from 'styled-components';
 import { SocketContext } from './SocketContext';
 import { usePolkadotWallet } from './PolkadotWalletContext';
 import { payoutWinner } from './utils/payout-winner';
+import { disburseTokensToParticipant } from './utils/disburse-tokens';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import PolkadotConnectButton from './components/PolkadotConnectButton';
 
 const Container = styled.div`
   display: flex;
@@ -43,6 +45,23 @@ const Container = styled.div`
   &::-webkit-scrollbar-thumb:hover {
     background: #555;
   }
+`;
+
+const HeaderContainer = styled.div`
+  width: 100%;
+  max-width: 1200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 30px;
+`;
+
+const WalletSection = styled.div`
+  margin-bottom: 20px;
+  width: 100%;
+  max-width: 800px;
+  display: flex;
+  justify-content: flex-end;
 `;
 
 const Header = styled.div`
@@ -400,6 +419,67 @@ const LoadingSpinner = styled.div`
   }
 `;
 
+// Token claim section styling
+const TokenClaimContainer = styled.div`
+  background-color: #e3f2fd;
+  border: 1px solid #2196f3;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
+  width: 100%;
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+`;
+
+const TokenClaimTitle = styled.h3`
+  color: #0d47a1;
+  margin-bottom: 15px;
+`;
+
+const TokenClaimDetails = styled.div`
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 400px;
+  margin-bottom: 15px;
+  padding: 10px;
+  background-color: #bbdefb;
+  border-radius: 6px;
+`;
+
+const TokenLabel = styled.div`
+  font-weight: bold;
+  color: #0d47a1;
+`;
+
+const TokenValue = styled.div`
+  font-weight: bold;
+  color: #1565c0;
+`;
+
+const TokenClaimButton = styled(Button)`
+  background-color: #2196f3;
+  color: white;
+  
+  &:hover {
+    background-color: #1976d2;
+  }
+  
+  &:disabled {
+    background-color: #bbdefb;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+`;
+
+// Format token amount
+const formatTokens = (amount) => {
+  return `${amount} Game Tokens`;
+};
+
 const Leaderboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -421,11 +501,23 @@ const Leaderboard = () => {
   const [payoutStatus, setPayoutStatus] = useState(null);
   const [hasClaimed, setHasClaimed] = useState(false);
   
-  // Use localStorage to track if the prize was already claimed
+  // New state for token claim
+  const [isParticipant, setIsParticipant] = useState(false);
+  const [userCoins, setUserCoins] = useState(0);
+  const [isClaimingTokens, setIsClaimingTokens] = useState(false);
+  const [tokenClaimStatus, setTokenClaimStatus] = useState(null);
+  const [hasClaimedTokens, setHasClaimedTokens] = useState(false);
+  
+  // Use localStorage to track claims
   useEffect(() => {
-    const claimed = localStorage.getItem('betPrizeClaimed');
-    if (claimed === 'true') {
+    const betClaimed = localStorage.getItem('betPrizeClaimed');
+    if (betClaimed === 'true') {
       setHasClaimed(true);
+    }
+    
+    const tokensClaimed = localStorage.getItem('gameTokensClaimed');
+    if (tokensClaimed === 'true') {
+      setHasClaimedTokens(true);
     }
   }, []);
 
@@ -465,27 +557,51 @@ const Leaderboard = () => {
           if (data.bets) setBets(data.bets);
           if (data.totalPool) setTotalPool(data.totalPool);
           
-          // Process user's bets if they're logged in
-          if (address && data.bets) {
-            // Find all bets placed by the current user
-            const myBets = data.bets.filter(bet => bet.betterAddress === address);
-            setUserBets(myBets);
+          // Check if current user was a participant
+          if (address) {
+            // Find user in results to determine if they were a participant
+            const userResult = data.results.find(player => player.address === address);
+            if (userResult) {
+              setIsParticipant(true);
+              setUserCoins(userResult.coinCount || 0);
+              console.log(`User was a participant with ${userResult.coinCount} coins collected`);
+            } else {
+              // Force set a participant flag if we see user is in the results
+              // This is a fallback in case the address matching fails
+              const foundPlayer = data.results.find(player => 
+                player.name?.includes('You') || 
+                (player.id === socket.id)
+              );
+              
+              if (foundPlayer) {
+                setIsParticipant(true);
+                setUserCoins(foundPlayer.coinCount || 0);
+                console.log(`User identified as participant with ${foundPlayer.coinCount} coins`);
+              }
+            }
             
-            // Check if any of the user's bets were on winners
-            if (myBets.length > 0 && data.results.length > 0) {
-              const winningPlayerId = data.results[0].id; // First place winner
+            // Process user's bets if they're logged in
+            if (data.bets) {
+              // Find all bets placed by the current user
+              const myBets = data.bets.filter(bet => bet.betterAddress === address);
+              setUserBets(myBets);
               
-              // Find if user bet on the winner
-              const winningBet = myBets.find(bet => bet.targetPlayerId === winningPlayerId);
-              
-              if (winningBet) {
-                // Calculate winnings (simple version - just double the bet)
-                // In a real implementation, you might use a more complex formula
-                const winningAmount = winningBet.amount * 2;
+              // Check if any of the user's bets were on winners
+              if (myBets.length > 0 && data.results.length > 0) {
+                const winningPlayerId = data.results[0].id; // First place winner
                 
-                setUserWonBet(true);
-                setWinAmount(winningAmount);
-                console.log(`User won bet! Amount: ${winningAmount}`);
+                // Find if user bet on the winner
+                const winningBet = myBets.find(bet => bet.targetPlayerId === winningPlayerId);
+                
+                if (winningBet) {
+                  // Calculate winnings (simple version - just double the bet)
+                  // In a real implementation, you might use a more complex formula
+                  const winningAmount = winningBet.amount * 2;
+                  
+                  setUserWonBet(true);
+                  setWinAmount(winningAmount);
+                  console.log(`User won bet! Amount: ${winningAmount}`);
+                }
               }
             }
           }
@@ -529,9 +645,20 @@ const Leaderboard = () => {
       if (location.state.bets) setBets(location.state.bets);
       if (location.state.totalPool) setTotalPool(location.state.totalPool);
       
+      // Check if current user was a participant
+      if (address && location.state.results) {
+        // Find user in results to determine if they were a participant
+        const userResult = location.state.results.find(player => player.address === address);
+        if (userResult) {
+          setIsParticipant(true);
+          setUserCoins(userResult.coinCount || 0);
+          console.log(`User was a participant with ${userResult.coinCount} coins collected`);
+        }
+      }
+      
       setIsLoading(false);
     }
-  }, [location.state]);
+  }, [location.state, address]);
 
   // Handle navigation
   const handlePlayAgain = () => {
@@ -595,14 +722,97 @@ const Leaderboard = () => {
       setIsPaying(false);
     }
   };
+  
+  // Handle claiming game tokens
+  const handleClaimGameTokens = async () => {
+    if (!address) {
+      toast.error("Please connect your wallet to claim tokens");
+      return;
+    }
+    
+    // Get the coins count to use for the token claim
+    const coinsToUse = userCoins > 0 ? userCoins : 
+      results.find(p => p.address === address)?.coinCount || 
+      results[0].coinCount;
+    
+    if (coinsToUse <= 0) {
+      toast.error("Cannot claim tokens without coins");
+      return;
+    }
+    
+    if (hasClaimedTokens) {
+      toast.info("You have already claimed your tokens");
+      return;
+    }
+    
+    try {
+      setIsClaimingTokens(true);
+      setTokenClaimStatus(null);
+      
+      // Log the token disbursement attempt
+      console.log(`Attempting to disburse tokens for ${coinsToUse} coins to address: ${address}`);
+      toast.info("Processing your token claim...");
+      
+      // Call the token disbursement function
+      const result = await disburseTokensToParticipant(address, coinsToUse);
+      console.log('Token disbursement result:', result);
+      
+      if (result && result.success) {
+        const tokenAmount = result.transferAmount || (10 + coinsToUse);
+        
+        setTokenClaimStatus({
+          success: true,
+          message: `Successfully claimed ${tokenAmount} game tokens!`
+        });
+        
+        toast.success(`Successfully claimed ${tokenAmount} game tokens!`);
+        
+        // Mark as claimed in localStorage
+        localStorage.setItem('gameTokensClaimed', 'true');
+        setHasClaimedTokens(true);
+        
+        // Emit socket event to notify server about token claim
+        if (socket) {
+          socket.emit('tokensClaimed', {
+            address,
+            coinsCollected: coinsToUse,
+            tokensReceived: tokenAmount
+          });
+        }
+      } else {
+        const errorMsg = result?.error || 'Unknown error occurred';
+        setTokenClaimStatus({
+          error: true,
+          message: `Failed to claim tokens: ${errorMsg}`
+        });
+        toast.error(`Failed to claim game tokens: ${errorMsg}`);
+      }
+    } catch (error) {
+      console.error('Error claiming game tokens:', error);
+      setTokenClaimStatus({
+        error: true,
+        message: `Error: ${error.message || 'Unknown error'}`
+      });
+      toast.error(`Error processing token claim: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsClaimingTokens(false);
+    }
+  };
 
   return (
     <Container>
       <ToastContainer position="top-right" autoClose={5000} />
-      <Header>
-        <Title>Race Results</Title>
-        <Subtitle>Final standings and rewards</Subtitle>
-      </Header>
+      
+      <HeaderContainer>
+        <WalletSection>
+          <PolkadotConnectButton btnTitle="Connect Wallet" />
+        </WalletSection>
+        
+        <Header>
+          <Title>Race Results</Title>
+          <Subtitle>Final standings and rewards</Subtitle>
+        </Header>
+      </HeaderContainer>
       
       {isLoading ? (
         <FallbackMessage>
@@ -664,6 +874,48 @@ const Leaderboard = () => {
               <h3>No Race Results</h3>
               <p>There are no results to display yet. The race may still be in progress.</p>
             </FallbackMessage>
+          )}
+          
+          {/* Token Claim Section - show for all players with coins */}
+          {results.length > 0 && (
+            <TokenClaimContainer>
+              <TokenClaimTitle>Claim Your Game Tokens</TokenClaimTitle>
+              
+              {!address ? (
+                <div style={{ marginBottom: '15px', color: '#f44336' }}>
+                  Please connect your wallet to claim tokens
+                </div>
+              ) : (
+                <>
+                  <TokenClaimDetails>
+                    <TokenLabel>Coins Available:</TokenLabel>
+                    <TokenValue>{userCoins > 0 ? userCoins : 
+                      results.find(p => p.address === address)?.coinCount || 
+                      results[0].coinCount}</TokenValue>
+                  </TokenClaimDetails>
+                  
+                  <TokenClaimDetails>
+                    <TokenLabel>Tokens to Receive:</TokenLabel>
+                    <TokenValue>{formatTokens(10 + (userCoins > 0 ? userCoins : 
+                      results.find(p => p.address === address)?.coinCount || 
+                      results[0].coinCount))}</TokenValue>
+                  </TokenClaimDetails>
+                  
+                  <TokenClaimButton 
+                    onClick={handleClaimGameTokens} 
+                    disabled={isClaimingTokens || hasClaimedTokens}
+                  >
+                    {isClaimingTokens ? 'Processing...' : hasClaimedTokens ? 'Tokens Claimed' : 'Claim Game Tokens'}
+                  </TokenClaimButton>
+                </>
+              )}
+              
+              {tokenClaimStatus && (
+                <PayoutStatus success={tokenClaimStatus.success} error={tokenClaimStatus.error}>
+                  {tokenClaimStatus.message}
+                </PayoutStatus>
+              )}
+            </TokenClaimContainer>
           )}
           
           {/* Betting results */}
