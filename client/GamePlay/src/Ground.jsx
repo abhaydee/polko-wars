@@ -3,7 +3,7 @@ import { MeshReflectorMaterial } from "@react-three/drei";
 import { useLoader } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
 import { BufferAttribute } from "three";
-import { TextureLoader } from "three/src/loaders/TextureLoader";
+import { TextureLoader } from "three/src/loaders/TextureLoader.js";
 
 export function Ground() {
   const [ref] = usePlane(

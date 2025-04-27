@@ -5,23 +5,8 @@ import Modal from 'react-modal';
 import { NFT_CONTRACT_ADDRESS, TOKEN_CONTRACT_ADDRESS } from './constants/addresses';
 import backgroundImage from './Assests/fbg.jpeg';
 import LeaderBoard from './LeaderBoard';
-import { client } from "./client";
-import { ConnectButton, useActiveAccount } from "thirdweb/react";
-import { ConnectEmbed } from "thirdweb/react";
-import { createWallet, inAppWallet } from "thirdweb/wallets";
-
-const wallets = [
-  inAppWallet({
-    auth: {
-      options: [
-        "email",
-        "google",
-        "phone",
-      ],
-    },
-  }),
-  createWallet("io.metamask"),
-];
+import { usePolkadotWallet } from './PolkadotWalletContext';
+import PolkadotConnectButton from './components/PolkadotConnectButton';
 
 // Styled components for styling
 const HomeContainer = styled.div`
@@ -63,10 +48,9 @@ const Button = styled.button`
 
 const Home = () => {
   const [modalIsOpen, setModalIsOpen] = useState(false);
-  const activeAccount = useActiveAccount();
-  const address = activeAccount?.address
-  console.log(address)
-
+  const { activeAccount } = usePolkadotWallet();
+  const address = activeAccount?.address;
+  console.log(address);
 
   const openModal = () => {
     setModalIsOpen(true);
@@ -86,18 +70,8 @@ const Home = () => {
     <HomeContainer>
       <CardContainer>
         <Card>
-          <ConnectButton
-            theme={"light"}
+          <PolkadotConnectButton
             btnTitle={"Login"}
-            modalTitle={"Select a Wallet"}
-            modalSize={"compact"}
-            modalTitleIconUrl={""}
-            dropdownPosition={{
-              side: "left",
-              align: "end",
-            }}
-            client={client}
-            wallets={wallets}
           />
           <Button onClick={openModal}>Rules</Button>
           {/* {address && (
@@ -109,7 +83,7 @@ const Home = () => {
 
           {address && (
           <Button>
-            <Link to="/lobby" style={{ textDecoration: 'none', color: '#fff' }}>Lobby</Link>
+            <Link to="/explore" style={{ textDecoration: 'none', color: '#fff' }}>Explore</Link>
           </Button>
           )}
           
