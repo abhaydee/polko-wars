@@ -35,10 +35,6 @@ Solidity,  Moonbeam Network Parachain for smart contract deployments,  Westend A
 
 Node.JS for server side scripts and backend 
 
-## Unique Network Collections Data 
-
-https://uniquescan.io/opal/collections/3286 
-
 ## Polkadot Westend Asset Hub Subscan : 
 
 https://assethub-westend.subscan.io/account/5EUDMH4yMmgzZT9idqifyfrEpvW15EiPts1twMWuQQM6WcmX?tab=extrinsic
