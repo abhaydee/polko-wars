@@ -55,7 +55,16 @@ export const SocketProvider = ({ children }) => {
       
       // Send the player's car color to the server
       const playerCarColor = localStorage.getItem('carColor') || '#ff0000';
-      newSocket.emit('playerInit', { carColor: playerCarColor });
+      
+      // Check if we have an item ID stored in localStorage
+      const playerItemId = localStorage.getItem('playerItemId');
+      
+      // Send initial player data including item ID if available
+      newSocket.emit('playerInit', { 
+        carColor: playerCarColor,
+        itemId: playerItemId || null
+      });
+      
       setCarColor(playerCarColor);
     };
 
@@ -90,6 +99,12 @@ export const SocketProvider = ({ children }) => {
 
     const handleNewPlayer = (player) => {
       console.log('New player joined:', player);
+      
+      // Make sure to log if player has an itemId
+      if (player.itemId) {
+        console.log(`Player ${player.id} has item ID: ${player.itemId}`);
+      }
+      
       updatePlayerData(player.id, player);
     };
 
@@ -106,6 +121,12 @@ export const SocketProvider = ({ children }) => {
     
     const handlePlayerUpdated = (player) => {
       console.log('Player updated:', player);
+      
+      // Make sure to log if player has an itemId
+      if (player.itemId) {
+        console.log(`Updated player ${player.id} has item ID: ${player.itemId}`);
+      }
+      
       if (player && player.id) {
         updatePlayerData(player.id, player);
       }
@@ -142,6 +163,16 @@ export const SocketProvider = ({ children }) => {
       console.log('Waiting room update:', data);
       
       if (data.players) {
+        // Log any players with itemIds for debugging
+        data.players.forEach(player => {
+          if (player.itemId) {
+            console.log(`Waiting room player ${player.id} has item ID: ${player.itemId}`);
+            
+            // Also update the remotePlayers with this information
+            updatePlayerData(player.id, player);
+          }
+        });
+        
         setWaitingRoomPlayers(data.players);
       }
       
@@ -237,7 +268,9 @@ export const SocketProvider = ({ children }) => {
       socket.emit('registerWaitingArena', {
         carColor: data.carColor || carColor,
         address: data.address,
-        name: data.name
+        name: data.name,
+        itemId: data.itemId, // Include item ID
+        isParticipant: data.isParticipant
       });
     }
   }, [socket, carColor]);

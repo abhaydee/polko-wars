@@ -36,8 +36,8 @@ const waitingRoom = {
 const gameState = {
   isActive: false,
   startTime: null,
-  gameDuration: 2 * 60, // 2 minutes in seconds
-  timeLeft: 2 * 60,
+  gameDuration: 60, // 1 minutes in seconds
+  timeLeft: 60,
   players: [],
   timeUpdateInterval: null,
   results: [] // Will hold the final results after game ends
@@ -90,7 +90,7 @@ function startWaitingRoomTimer() {
 // Process a new bet
 function processNewBet(bet) {
   // Validate bet
-  if (!bet.amount || !bet.targetPlayerId || !bet.betterAddress) {
+  if (!bet.amount || !bet.targetPlayerId || !bet.betterAddress || !bet.itemId) {
     console.log('Invalid bet format:', bet);
     return false;
   }
@@ -105,7 +105,7 @@ function processNewBet(bet) {
   // Update total pool
   waitingRoom.totalPool += parseFloat(bet.amount);
   
-  console.log(`New bet: ${bet.amount} WND from ${bet.betterAddress.substring(0, 6)} on player ${bet.targetPlayerId.substring(0, 6)}`);
+  console.log(`New bet: ${bet.amount} WND from ${bet.betterAddress.substring(0, 6)} on player ${bet.targetPlayerId.substring(0, 6)} with item ID: ${bet.itemId}`);
   console.log(`Total pool now: ${waitingRoom.totalPool} WND`);
   
   // Broadcast updated bets
@@ -309,14 +309,23 @@ io.on('connection', (socket) => {
     controls: {},
     carColor: '#ff0000', // Default red color
     lastUpdate: Date.now(),
-    collectedCoins: [] // Track coins collected by this player
+    collectedCoins: [], // Track coins collected by this player
+    itemId: null // Initialize with null item ID
   };
   
   // Handle player initialization with car color
   socket.on('playerInit', (data) => {
-    if (data && data.carColor) {
-      players[socket.id].carColor = data.carColor;
-      console.log(`Player ${socket.id.substring(0, 6)} initialized with car color: ${data.carColor}`);
+    if (data) {
+      if (data.carColor) {
+        players[socket.id].carColor = data.carColor;
+        console.log(`Player ${socket.id.substring(0, 6)} initialized with car color: ${data.carColor}`);
+      }
+      
+      // Store item ID if provided
+      if (data.itemId) {
+        players[socket.id].itemId = data.itemId;
+        console.log(`Player ${socket.id.substring(0, 6)} initialized with item ID: ${data.itemId}`);
+      }
       
       // Broadcast the updated player data to all other clients
       socket.broadcast.emit('playerUpdated', players[socket.id]);
@@ -330,20 +339,48 @@ io.on('connection', (socket) => {
       return;
     }
     
-    console.log(`Player ${socket.id.substring(0, 6)} placed bet of ${betData.amount} WND on player ${betData.targetPlayerId.substring(0, 6)}`);
+    // Verify the target player exists and has an item ID
+    const targetPlayer = waitingRoom.players.find(p => p.id === betData.targetPlayerId);
+    
+    if (!targetPlayer) {
+      console.error(`Target player ${betData.targetPlayerId} not found for bet`);
+      socket.emit('betRejected', { 
+        reason: 'Player not found',
+        betData 
+      });
+      return;
+    }
+    
+    if (!betData.itemId && !targetPlayer.itemId) {
+      console.error(`No item ID provided for bet on player ${betData.targetPlayerId}`);
+      socket.emit('betRejected', { 
+        reason: 'No item ID available',
+        betData 
+      });
+      return;
+    }
+    
+    // Use the provided itemId or fall back to the target player's itemId
+    const itemId = betData.itemId || targetPlayer.itemId;
+    console.log(`Player ${socket.id.substring(0, 6)} placed bet of ${betData.amount} WND on player ${betData.targetPlayerId.substring(0, 6)} with item ID: ${itemId}`);
     
     // Process the bet
     const success = processNewBet({
       amount: parseFloat(betData.amount),
       targetPlayerId: betData.targetPlayerId,
       betterAddress: betData.betterAddress,
-      betterSocketId: socket.id
+      betterSocketId: socket.id,
+      itemId: itemId,
+      transactionHash: betData.transactionHash
     });
     
     if (success) {
       // Confirm bet to sender
       socket.emit('betConfirmed', {
-        betData,
+        betData: {
+          ...betData,
+          itemId: itemId
+        },
         timestamp: Date.now()
       });
       
@@ -388,7 +425,7 @@ io.on('connection', (socket) => {
   
   // Register a player in the waiting arena
   socket.on('registerWaitingArena', (data) => {
-    console.log(`Player ${socket.id.substring(0, 6)} registered in waiting arena`);
+    console.log(`Player ${socket.id.substring(0, 6)} registered in waiting arena`, data);
     
     // Check if they were a spectator before, remove from spectators if so
     const spectatorIndex = waitingRoom.spectators.findIndex(s => s.id === socket.id);
@@ -408,8 +445,11 @@ io.on('connection', (socket) => {
         address: data.address || 'anonymous',
         joinedAt: Date.now(),
         ready: false,
-        isParticipant: data.isParticipant || false
+        isParticipant: data.isParticipant || false,
+        itemId: data.itemId || null // Store item ID
       };
+      
+      console.log(`Stored player with item ID: ${data.itemId}`);
       
       // Add to waiting room
       waitingRoom.players.push(playerInfo);
@@ -418,6 +458,7 @@ io.on('connection', (socket) => {
       if (players[socket.id]) {
         players[socket.id].carColor = playerInfo.carColor;
         players[socket.id].name = playerInfo.name;
+        players[socket.id].itemId = playerInfo.itemId; // Add item ID to player data
       }
       
       console.log(`Waiting room now has ${waitingRoom.players.length} players`);
@@ -434,6 +475,15 @@ io.on('connection', (socket) => {
       }
       if (data.isParticipant !== undefined) {
         waitingRoom.players[existingPlayerIndex].isParticipant = data.isParticipant;
+      }
+      if (data.itemId) {
+        waitingRoom.players[existingPlayerIndex].itemId = data.itemId;
+        console.log(`Updated player ${socket.id.substring(0, 6)} with item ID: ${data.itemId}`);
+        
+        // Also update regular player data
+        if (players[socket.id]) {
+          players[socket.id].itemId = data.itemId;
+        }
       }
     }
     

@@ -3,6 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import { SocketContext } from './SocketContext';
 import { usePolkadotWallet } from './PolkadotWalletContext';
+import { payoutWinner } from './utils/payout-winner';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const Container = styled.div`
   display: flex;
@@ -72,19 +75,33 @@ const LeaderboardTable = styled.div`
 
 const TableHeader = styled.div`
   display: grid;
-  grid-template-columns: 70px 1fr 120px 120px;
+  grid-template-columns: 70px minmax(200px, 1fr) 100px 100px;
   padding: 15px 20px;
   background-color: #333;
   color: white;
   font-weight: bold;
+  align-items: center;
+  
+  @media (max-width: 600px) {
+    grid-template-columns: 50px minmax(120px, 1fr) 80px 80px;
+    padding: 12px 10px;
+    font-size: 0.9rem;
+  }
 `;
 
 const TableRow = styled.div`
   display: grid;
-  grid-template-columns: 70px 1fr 120px 120px;
+  grid-template-columns: 70px minmax(200px, 1fr) 100px 100px;
   padding: 15px 20px;
   border-bottom: 1px solid #eee;
   align-items: center;
+  transition: background-color 0.2s;
+  
+  @media (max-width: 600px) {
+    grid-template-columns: 50px minmax(120px, 1fr) 80px 80px;
+    padding: 12px 10px;
+    font-size: 0.9rem;
+  }
   
   &:nth-child(even) {
     background-color: #f9f9f9;
@@ -94,14 +111,19 @@ const TableRow = styled.div`
     border-bottom: none;
   }
   
+  &:hover {
+    background-color: #f0f0f0;
+  }
+  
   ${props => props.isWinner && `
-    background-color: #eaf7ea !important;
+    background-color: #e8f5e9 !important;
     border-left: 5px solid #4caf50;
   `}
   
   ${props => props.isUser && `
     font-weight: bold;
-    background-color: #e6f7ff !important;
+    background-color: #e3f2fd !important;
+    border-left: 5px solid #2196f3;
   `}
 `;
 
@@ -282,10 +304,106 @@ const formatWND = (amount) => {
   return `${amount.toLocaleString()} WND`;
 };
 
+// New styled components for the winner payout section
+const PayoutContainer = styled.div`
+  background-color: #e8f5e9;
+  border: 1px solid #66bb6a;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
+  width: 100%;
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+`;
+
+const PayoutTitle = styled.h3`
+  color: #2e7d32;
+  margin-bottom: 15px;
+`;
+
+const PayoutAmount = styled.div`
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin-bottom: 15px;
+`;
+
+const PayoutButton = styled(Button)`
+  background-color: #4caf50;
+  color: white;
+  
+  &:hover {
+    background-color: #388e3c;
+  }
+  
+  &:disabled {
+    background-color: #a5d6a7;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+`;
+
+const PayoutStatus = styled.div`
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 4px;
+  text-align: center;
+  
+  ${props => props.success && `
+    background-color: #e8f5e9;
+    color: #2e7d32;
+  `}
+  
+  ${props => props.error && `
+    background-color: #ffebee;
+    color: #c62828;
+  `}
+  
+  ${props => props.warning && `
+    background-color: #fff8e1;
+    color: #f57c00;
+  `}
+`;
+
+// Add a FallbackMessage component for empty state
+const FallbackMessage = styled.div`
+  text-align: center;
+  padding: 30px;
+  background-color: #f9f9f9;
+  border-radius: 10px;
+  margin: 20px 0;
+  color: #666;
+  width: 100%;
+  max-width: 800px;
+  
+  h3 {
+    margin-bottom: 10px;
+    color: #333;
+  }
+`;
+
+// Add a LoadingSpinner component
+const LoadingSpinner = styled.div`
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-radius: 50%;
+  border-top: 4px solid #3498db;
+  width: 50px;
+  height: 50px;
+  animation: spin 1s linear infinite;
+  margin: 50px auto;
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+`;
+
 const Leaderboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { socket, carColor } = useContext(SocketContext);
+  const { socket } = useContext(SocketContext);
   const { activeAccount } = usePolkadotWallet();
   const address = activeAccount?.address;
   
@@ -294,225 +412,315 @@ const Leaderboard = () => {
   const [bets, setBets] = useState([]);
   const [totalPool, setTotalPool] = useState(0);
   const [userBets, setUserBets] = useState([]);
-  const [winnings, setWinnings] = useState(0);
+  const [userWonBet, setUserWonBet] = useState(false);
+  const [winAmount, setWinAmount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
   
-  // Ask for game results when component mounts
+  // New state for payout
+  const [isPaying, setIsPaying] = useState(false);
+  const [payoutStatus, setPayoutStatus] = useState(null);
+  const [hasClaimed, setHasClaimed] = useState(false);
+  
+  // Use localStorage to track if the prize was already claimed
+  useEffect(() => {
+    const claimed = localStorage.getItem('betPrizeClaimed');
+    if (claimed === 'true') {
+      setHasClaimed(true);
+    }
+  }, []);
+
+  // Load data from socket
   useEffect(() => {
     if (socket) {
-      // Listen for game results
+      setIsLoading(true);
+      console.log('Leaderboard mounted, requesting game results');
+      
+      // First try to request game results
+      socket.emit('requestGameResults');
+      
+      // Also join game to make sure we get any existing results
+      socket.emit('joinGame');
+      
+      // Add timeout to show loading state for at least 1 second
+      const loadingTimer = setTimeout(() => {
+        setIsLoading(false);
+      }, 1000);
+      
+      // Handle receiving game results
       socket.on('gameResults', (data) => {
         console.log('Received game results:', data);
-        setResults(data.results || []);
-        setWinners(data.winners || []);
-        setBets(data.bets || []);
-        setTotalPool(data.totalPool || 0);
         
-        // Calculate user's bets and potential winnings
-        if (address && data.bets) {
-          const userBetsList = data.bets.filter(bet => bet.betterAddress === address);
-          setUserBets(userBetsList);
+        if (data.results && data.results.length > 0) {
+          setResults(data.results);
           
-          // Determine if any user bets won
+          // Set winners if present
           if (data.winners && data.winners.length > 0) {
-            const winningIds = data.winners.map(w => w.id);
-            let userWinAmount = 0;
-            
-            userBetsList.forEach(bet => {
-              if (winningIds.includes(bet.targetPlayerId)) {
-                // Simple payout model: 
-                // If you bet on the winner, you get your bet back plus a proportional share of the pool
-                const winnerBets = data.bets.filter(b => winningIds.includes(b.targetPlayerId));
-                const totalWinnerBetsAmount = winnerBets.reduce((total, b) => total + b.amount, 0);
-                
-                if (totalWinnerBetsAmount > 0) {
-                  // Simplified model - you get your bet back plus proportional share of losing bets
-                  const shareOfPool = (bet.amount / totalWinnerBetsAmount) * (data.totalPool - totalWinnerBetsAmount);
-                  userWinAmount += bet.amount + shareOfPool;
-                }
-              }
-            });
-            
-            setWinnings(userWinAmount);
+            setWinners(data.winners);
+          } else {
+            // If no winners specified, assume top 3 from results
+            setWinners(data.results.slice(0, Math.min(3, data.results.length)));
           }
+          
+          // Set betting data
+          if (data.bets) setBets(data.bets);
+          if (data.totalPool) setTotalPool(data.totalPool);
+          
+          // Process user's bets if they're logged in
+          if (address && data.bets) {
+            // Find all bets placed by the current user
+            const myBets = data.bets.filter(bet => bet.betterAddress === address);
+            setUserBets(myBets);
+            
+            // Check if any of the user's bets were on winners
+            if (myBets.length > 0 && data.results.length > 0) {
+              const winningPlayerId = data.results[0].id; // First place winner
+              
+              // Find if user bet on the winner
+              const winningBet = myBets.find(bet => bet.targetPlayerId === winningPlayerId);
+              
+              if (winningBet) {
+                // Calculate winnings (simple version - just double the bet)
+                // In a real implementation, you might use a more complex formula
+                const winningAmount = winningBet.amount * 2;
+                
+                setUserWonBet(true);
+                setWinAmount(winningAmount);
+                console.log(`User won bet! Amount: ${winningAmount}`);
+              }
+            }
+          }
+          
+          setIsLoading(false);
+        } else {
+          console.log('No results data in response:', data);
         }
       });
       
-      // Request game results
-      socket.emit('joinGame');
+      // Set up a retry mechanism if no data received within 2 seconds
+      const retryTimer = setTimeout(() => {
+        if (results.length === 0) {
+          console.log('No results received yet, retrying...');
+          socket.emit('requestGameResults');
+          socket.emit('joinGame');
+        }
+      }, 2000);
       
       return () => {
         socket.off('gameResults');
+        clearTimeout(retryTimer);
+        clearTimeout(loadingTimer);
       };
     }
   }, [socket, address]);
-  
-  // Handle play again
+
+  // Add effect to check for results in location state (passed from game component)
+  useEffect(() => {
+    if (location.state?.results) {
+      console.log('Found results in location state:', location.state.results);
+      setResults(location.state.results);
+      
+      if (location.state.winners) {
+        setWinners(location.state.winners);
+      } else if (location.state.results.length > 0) {
+        // If no winners specified, assume top 3
+        setWinners(location.state.results.slice(0, Math.min(3, location.state.results.length)));
+      }
+      
+      if (location.state.bets) setBets(location.state.bets);
+      if (location.state.totalPool) setTotalPool(location.state.totalPool);
+      
+      setIsLoading(false);
+    }
+  }, [location.state]);
+
+  // Handle navigation
   const handlePlayAgain = () => {
     navigate('/lobby');
   };
-  
-  // Handle go home
+
   const handleGoHome = () => {
     navigate('/');
   };
   
-  const winner = winners.length > 0 ? winners[0] : null;
-  
+  // Handle claiming the bet prize
+  const handleClaimPrize = async () => {
+    if (!address || !userWonBet || winAmount <= 0 || hasClaimed) return;
+    
+    try {
+      setIsPaying(true);
+      setPayoutStatus(null);
+      
+      // Log the payout attempt
+      console.log(`Attempting to pay ${winAmount} WND to address: ${address}`);
+      
+      // Call the payout function
+      const result = await payoutWinner(address, winAmount);
+      console.log('Payout result:', result);
+      
+      if (result.success) {
+        // Check if transfer was actually confirmed
+        if (result.transferConfirmed) {
+          setPayoutStatus({
+            success: true,
+            message: `Successfully claimed ${winAmount} WND! Your wallet has been credited.`
+          });
+          toast.success(`Successfully claimed ${winAmount} WND!`);
+          
+          // Mark as claimed in localStorage
+          localStorage.setItem('betPrizeClaimed', 'true');
+          setHasClaimed(true);
+        } else {
+          // Transaction was successful but transfer event not confirmed
+          setPayoutStatus({
+            warning: true,
+            message: `Transaction processed but transfer not confirmed. Please check your wallet balance.`
+          });
+          toast.warning(`Transaction processed, please check your wallet balance.`);
+        }
+      } else {
+        setPayoutStatus({
+          error: true,
+          message: `Failed to claim: ${result.error}`
+        });
+        toast.error(`Failed to claim: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error claiming prize:', error);
+      setPayoutStatus({
+        error: true,
+        message: `Error: ${error.message || 'Unknown error'}`
+      });
+      toast.error(`Error: ${error.message || 'Unknown error'}`);
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
   return (
     <Container>
+      <ToastContainer position="top-right" autoClose={5000} />
       <Header>
         <Title>Race Results</Title>
-        <Subtitle>Race completed! Here are the final standings:</Subtitle>
+        <Subtitle>Final standings and rewards</Subtitle>
       </Header>
       
-      {winner && (
-        <WinnerHighlight>
-          <WinnerInfo>
-            <WinnerImage>
-              <img src={getCarImage(winner.carColor)} alt="Winner car" />
-            </WinnerImage>
-            <div>
-              <WinnerName>{winner.name}</WinnerName>
-              <div>{winner.coinCount} coins collected</div>
-            </div>
-          </WinnerInfo>
-          <div>
-            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ffa500' }}>1st Place</div>
-          </div>
-        </WinnerHighlight>
-      )}
-      
-      <LeaderboardTable>
-        <TableHeader>
-          <div>Rank</div>
-          <div>Player</div>
-          <div>Coins</div>
-          <div>Bet Result</div>
-        </TableHeader>
-        
-        {results.map((player, index) => {
-          const isWinner = index < 3;
-          const isUser = player.id === socket?.id;
-          const userBetOnThisPlayer = userBets.some(bet => bet.targetPlayerId === player.id);
-          
-          return (
-            <TableRow key={player.id} isWinner={isWinner} isUser={isUser}>
-              <Rank top3={index < 3}>{index + 1}</Rank>
-              <PlayerInfo>
-                <CarIcon>
-                  <img src={getCarImage(player.carColor)} alt="Car" />
-                </CarIcon>
-                <PlayerName isUser={isUser}>
-                  {isUser ? 'You' : player.name}
-                </PlayerName>
-              </PlayerInfo>
-              <CoinCount>{player.coinCount}</CoinCount>
-              <BetResult 
-                win={userBetOnThisPlayer && isWinner} 
-                lose={userBetOnThisPlayer && !isWinner}
-              >
-                {userBetOnThisPlayer && isWinner && 'Win!'}
-                {userBetOnThisPlayer && !isWinner && 'Loss'}
-                {!userBetOnThisPlayer && '-'}
-              </BetResult>
-            </TableRow>
-          );
-        })}
-      </LeaderboardTable>
-      
-      {bets.length > 0 && (
-        <BettingResults>
-          <BetTitle>Betting Results</BetTitle>
-          <TotalPool>Total Pool: {formatWND(totalPool)}</TotalPool>
-          
-          {winnings > 0 && address && (
-            <div style={{ 
-              padding: '15px', 
-              backgroundColor: '#eaf7ea', 
-              borderRadius: '5px', 
-              marginBottom: '20px',
-              textAlign: 'center',
-              fontWeight: 'bold',
-              color: '#4caf50'
-            }}>
-              You won {formatWND(winnings)}!
-            </div>
+      {isLoading ? (
+        <FallbackMessage>
+          <LoadingSpinner />
+          <p>Loading race results...</p>
+        </FallbackMessage>
+      ) : (
+        <>
+          {/* Winners section */}
+          {winners.length > 0 && (
+            <WinnerHighlight>
+              <WinnerInfo>
+                <WinnerImage>
+                  <img src={getCarImage(winners[0].carColor)} alt="Winner car" />
+                </WinnerImage>
+                <WinnerName>Winner: {winners[0].name}</WinnerName>
+              </WinnerInfo>
+              <CoinCount>{winners[0].coinCount} coins</CoinCount>
+            </WinnerHighlight>
           )}
           
-          <div style={{ marginBottom: '15px', fontWeight: 'bold' }}>Your Bets:</div>
-          
-          {address && userBets.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '10px', color: '#666' }}>
-              You didn't place any bets on this race.
-            </div>
-          )}
-          
-          {address && userBets.map((bet, index) => {
-            const targetPlayer = results.find(p => p.id === bet.targetPlayerId);
-            const playerRank = results.findIndex(p => p.id === bet.targetPlayerId) + 1;
-            const isWinner = playerRank <= 3;
-            
-            return (
-              <BetItem key={index}>
-                <div>
-                  <div>Bet on: {targetPlayer ? targetPlayer.name : `Player ${bet.targetPlayerId.substring(0, 6)}`}</div>
-                  <div style={{ fontSize: '0.8rem', color: isWinner ? '#4caf50' : '#f44336' }}>
-                    {isWinner ? `Winner (${playerRank}${playerRank === 1 ? 'st' : playerRank === 2 ? 'nd' : 'rd'} place)` : `Lost (${playerRank}th place)`}
-                  </div>
-                </div>
-                <BetAmount>{formatWND(bet.amount)}</BetAmount>
-              </BetItem>
-            );
-          })}
-          
-          {/* Only show other bets if there are any */}
-          {bets.length > (userBets.length) && (
-            <>
-              <div style={{ margin: '20px 0 15px', fontWeight: 'bold' }}>All Bets:</div>
+          {/* Leaderboard table or empty message */}
+          {results.length > 0 ? (
+            <LeaderboardTable>
+              <TableHeader>
+                <div>Rank</div>
+                <div>Player</div>
+                <div>Coins</div>
+                <div>Bet Result</div>
+              </TableHeader>
               
-              {bets.slice(0, 5).map((bet, index) => {
-                const isUserBet = bet.betterAddress === address;
-                const targetPlayer = results.find(p => p.id === bet.targetPlayerId);
-                const playerRank = results.findIndex(p => p.id === bet.targetPlayerId) + 1;
-                const isWinner = playerRank <= 3;
+              {results.map((player, index) => {
+                const isCurrentUser = player.address === address;
+                const isWinner = index === 0;
+                const userBetOnThisPlayer = userBets.some(bet => bet.targetPlayerId === player.id);
+                const betResult = userBetOnThisPlayer ? (isWinner ? 'Won' : 'Lost') : '';
                 
                 return (
-                  <BetItem key={index}>
-                    <div>
-                      <BetAddress isUser={isUserBet}>
-                        {isUserBet ? 'You' : `${bet.betterAddress.substring(0, 6)}...${bet.betterAddress.substring(bet.betterAddress.length - 4)}`}
-                      </BetAddress>
-                      <div style={{ fontSize: '0.8rem' }}>
-                        Bet on: {targetPlayer ? targetPlayer.name : `Player ${bet.targetPlayerId.substring(0, 6)}`}
-                      </div>
-                    </div>
-                    <div>
-                      <BetAmount>{formatWND(bet.amount)}</BetAmount>
-                      <div style={{ 
-                        fontSize: '0.8rem', 
-                        color: isWinner ? '#4caf50' : '#f44336',
-                        textAlign: 'right' 
-                      }}>
-                        {isWinner ? 'Win' : 'Loss'}
-                      </div>
-                    </div>
+                  <TableRow key={player.id} isWinner={isWinner} isUser={isCurrentUser}>
+                    <Rank top3={index < 3}>{index + 1}</Rank>
+                    <PlayerInfo>
+                      <CarIcon>
+                        <img src={getCarImage(player.carColor)} alt="Player car" />
+                      </CarIcon>
+                      <PlayerName isUser={isCurrentUser}>
+                        {player.name} {isCurrentUser && '(You)'}
+                      </PlayerName>
+                    </PlayerInfo>
+                    <CoinCount>{player.coinCount}</CoinCount>
+                    <BetResult win={betResult === 'Won'} lose={betResult === 'Lost'}>
+                      {betResult}
+                    </BetResult>
+                  </TableRow>
+                );
+              })}
+            </LeaderboardTable>
+          ) : (
+            <FallbackMessage>
+              <h3>No Race Results</h3>
+              <p>There are no results to display yet. The race may still be in progress.</p>
+            </FallbackMessage>
+          )}
+          
+          {/* Betting results */}
+          {bets.length > 0 && (
+            <BettingResults>
+              <BetTitle>Betting Results</BetTitle>
+              <TotalPool>Total Betting Pool: {formatWND(totalPool)}</TotalPool>
+              
+              {bets.map((bet, index) => {
+                const isCurrentUser = bet.betterAddress === address;
+                const betOnWinner = winners.length > 0 && bet.targetPlayerId === winners[0].id;
+                
+                return (
+                  <BetItem key={`${bet.id || index}`}>
+                    <BetAddress isUser={isCurrentUser}>
+                      {isCurrentUser ? 'You' : `${bet.betterAddress.substring(0, 8)}...${bet.betterAddress.substring(bet.betterAddress.length - 4)}`}
+                      {' -> '}
+                      {results.find(p => p.id === bet.targetPlayerId)?.name || bet.targetPlayerId.substring(0, 6)}
+                      {betOnWinner && ' ✓'}
+                    </BetAddress>
+                    <BetAmount>{formatWND(bet.amount)}</BetAmount>
                   </BetItem>
                 );
               })}
-              
-              {bets.length > 5 && (
-                <div style={{ textAlign: 'center', marginTop: '10px', color: '#666', fontSize: '0.9rem' }}>
-                  + {bets.length - 5} more bets
-                </div>
-              )}
-            </>
+            </BettingResults>
           )}
-        </BettingResults>
+          
+          {/* Winner payout section - only show for the user who won a bet */}
+          {userWonBet && address && (
+            <PayoutContainer>
+              <PayoutTitle>You won your bet!</PayoutTitle>
+              <PayoutAmount>{formatWND(winAmount)}</PayoutAmount>
+              
+              <PayoutButton 
+                onClick={handleClaimPrize} 
+                disabled={isPaying || hasClaimed}
+              >
+                {isPaying ? 'Processing...' : hasClaimed ? 'Prize Claimed' : 'Claim Prize'}
+              </PayoutButton>
+              
+              {payoutStatus && (
+                <PayoutStatus success={payoutStatus.success} error={payoutStatus.error} warning={payoutStatus.warning}>
+                  {payoutStatus.message}
+                </PayoutStatus>
+              )}
+            </PayoutContainer>
+          )}
+        </>
       )}
       
       <ButtonGroup>
-        <PlayAgainButton onClick={handlePlayAgain}>Play Again</PlayAgainButton>
-        <GoHomeButton onClick={handleGoHome}>Go Home</GoHomeButton>
+        <Button onClick={handlePlayAgain} style={{ backgroundColor: '#4CAF50', color: 'white' }}>
+          Play Again
+        </Button>
+        <Button onClick={handleGoHome} style={{ backgroundColor: '#2196F3', color: 'white' }}>
+          Back to Home
+        </Button>
       </ButtonGroup>
     </Container>
   );

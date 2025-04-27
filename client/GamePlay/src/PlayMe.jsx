@@ -43,7 +43,7 @@ const PointsDisplay = styled.div`
 const PlayMe = ({ importedData }) => {
   const drawRef = useRef();
   const [points, setPoints] = useState(0);
-  const [timer, setTimer] = useState(120); // 2 minutes (default)
+  const [timer, setTimer] = useState(60); // 1 minutes (default)
   const [gameStarted, setGameStarted] = useState(false);
   const { activeAccount } = usePolkadotWallet();
   const address = activeAccount?.address;

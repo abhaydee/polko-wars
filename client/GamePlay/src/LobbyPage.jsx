@@ -263,12 +263,24 @@ const LobbyPage = () => {
   };
 
   const handleF2P = () => {
-    // Navigate to waiting-arena with the selected color as state
-    // Include fromLobby=true to indicate this is a participant
+    // Get the NFT item ID if available
+    const selectedNFT = mintedCars.find(car => car.color === selectedColor) || 
+                        mintedCars[0]; // Fallback to first NFT if color doesn't match
+    
+    const itemId = selectedNFT ? selectedNFT.id : null;
+    
+    // Store the item ID in localStorage if available
+    if (itemId) {
+      localStorage.setItem('playerItemId', itemId);
+      console.log(`Stored player item ID in localStorage: ${itemId}`);
+    }
+    
+    // Navigate to waiting-arena with the selected color and item ID
     navigate('/waiting-arena', { 
       state: { 
         carColor: selectedColor,
-        fromLobby: true 
+        fromLobby: true,
+        itemId: itemId // Pass the item ID
       }
     });
   };

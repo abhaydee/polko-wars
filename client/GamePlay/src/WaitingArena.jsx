@@ -1,9 +1,12 @@
+/* global BigInt */
 import React, { useState, useEffect, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
 import { SocketContext } from './SocketContext';
 import { usePolkadotWallet } from './PolkadotWalletContext';
 import { getUserNFTs } from './utils/nft-minting';
+import { ApiPromise, WsProvider } from '@polkadot/api';
+import { web3FromAddress } from '@polkadot/extension-dapp';
 
 const Container = styled.div`
   display: flex;
@@ -329,30 +332,40 @@ const WaitingArena = () => {
   const [showBetModal, setShowBetModal] = useState(false);
   const [betAmount, setBetAmount] = useState('');
   const [selectedCar, setSelectedCar] = useState(null);
+  const [selectedCarItemId, setSelectedCarItemId] = useState(null); // Add state for item ID
   const [bets, setBets] = useState([]); // Array of bet objects
   const [totalPool, setTotalPool] = useState(0);
   const [betsByPlayer, setBetsByPlayer] = useState({}); // Organized by player ID
   const [betsByAddress, setBetsByAddress] = useState({}); // User's bets
+  const [isProcessingBet, setIsProcessingBet] = useState(false);
 
   // Register with the server on component mount
   useEffect(() => {
     if (socket) {
-      // Extract selected car color from location state
+      // Extract selected car color and item ID from location state
       const selectedCarColor = location.state?.carColor || carColor;
+      const playerItemId = location.state?.itemId || (playerNFTs.length > 0 ? playerNFTs[0].id : null);
+      
+      console.log('Location state:', location.state);
+      console.log('Player NFTs:', playerNFTs);
+      console.log('Selected car color:', selectedCarColor);
+      console.log('Player item ID:', playerItemId);
       
       // Check if the user is a participant (has car and is from lobby) or just a bettor
       const isComeFromLobby = location.state?.fromLobby === true;
-      const hasNFTCar = playerNFTs.length > 0;
+      const hasNFTCar = playerNFTs.length > 0 || playerItemId;
       
       // Set participation status - only registered if coming from lobby and having a car
       setIsParticipant(isComeFromLobby || hasNFTCar);
       
       // Register player in waiting room only if they're a participant
       if (isComeFromLobby || hasNFTCar) {
+        console.log(`Registering player with item ID: ${playerItemId}`);
         socket.emit('registerWaitingArena', { 
           carColor: selectedCarColor,
           address: address || 'anonymous',
-          isParticipant: true
+          isParticipant: true,
+          itemId: playerItemId // Include item ID if available
         });
         
         setIsRegistered(true);
@@ -365,6 +378,7 @@ const WaitingArena = () => {
       
       // Listen for updates to the waiting room
       socket.on('waitingRoomUpdate', (data) => {
+        console.log('Received waiting room update:', data);
         setRegisteredPlayers(data.players);
         
         // If server sent a new timer value, sync to it
@@ -437,18 +451,26 @@ const WaitingArena = () => {
     if (address) {
       getUserNFTs(address)
         .then(nfts => {
+          console.log('Fetched NFTs:', nfts);
           setPlayerNFTs(nfts);
           
           // Update participant status based on NFT ownership
           if (nfts.length > 0) {
             setIsParticipant(true);
             
+            // Store the NFT item ID in localStorage for future use
+            const playerItemId = nfts[0].id;
+            localStorage.setItem('playerItemId', playerItemId);
+            console.log(`Stored player item ID in localStorage: ${playerItemId}`);
+            
             // If they have NFTs but weren't registered yet, register them
             if (socket && !isRegistered) {
+              console.log(`Registering player with NFT item ID: ${playerItemId}`);
               socket.emit('registerWaitingArena', { 
                 carColor: carColor,
                 address: address,
-                isParticipant: true
+                isParticipant: true,
+                itemId: playerItemId
               });
               setIsRegistered(true);
             }
@@ -488,8 +510,15 @@ const WaitingArena = () => {
   };
   
   // Handle opening bet modal for a specific car
-  const handleOpenBetModal = (playerId) => {
+  const handleOpenBetModal = (playerId, itemId) => {
+    console.log(`Opening bet modal for player ${playerId} with item ID: ${itemId}`);
+    if (!itemId) {
+      console.error(`No item ID available for player ${playerId}`);
+      return;
+    }
+    
     setSelectedCar(playerId);
+    setSelectedCarItemId(itemId);
     setShowBetModal(true);
   };
   
@@ -497,29 +526,77 @@ const WaitingArena = () => {
   const handleCancelBet = () => {
     setShowBetModal(false);
     setSelectedCar(null);
+    setSelectedCarItemId(null); // Clear item ID
     setBetAmount('');
   };
   
   // Handle placing a bet
-  const handlePlaceBet = () => {
+  const handlePlaceBet = async () => {
     const amount = parseFloat(betAmount);
-    if (isNaN(amount) || amount <= 0 || !selectedCar || !address) {
+    if (isNaN(amount) || amount <= 0 || !selectedCar || !address || !selectedCarItemId) {
+      // Add check for item ID
+      console.error('Missing required bet information:', { 
+        amount, selectedCar, address, selectedCarItemId 
+      });
       return;
     }
     
-    // Send bet to server
-    if (socket) {
-      socket.emit('placeBet', {
-        amount,
-        targetPlayerId: selectedCar,
-        betterAddress: address
+    try {
+      setIsProcessingBet(true);
+      
+      // Initialize Polkadot API
+      const wsProvider = new WsProvider('wss://westend-asset-hub-rpc.polkadot.io');
+      const api = await ApiPromise.create({ provider: wsProvider });
+      
+      // Get the signer from the extension
+      const injector = await web3FromAddress(address);
+      
+      // Convert WND to plancks (1 WND = 10^12 plancks)
+      const amountInPlancks = BigInt(Math.round(amount * 1_000_000_000_000));
+      
+      // Define the escrow wallet address
+      const ESCROW_WALLET = '5FTbDyHJ2rte4FhgUPYD1NQnZGhezENt13Cb4bUMt9Ev6Zb2'; // Replace with your actual escrow wallet
+      
+      // Create the transfer transaction
+      const transfer = api.tx.balances.transferKeepAlive(
+        ESCROW_WALLET,
+        amountInPlancks
+      );
+      
+      // Sign and send the transaction
+      await transfer.signAndSend(address, { signer: injector.signer }, ({ status, events }) => {
+        if (status.isInBlock) {
+          console.log(`✅ Bet transaction included in block: ${status.asInBlock}`);
+          
+          // Once blockchain transaction is confirmed, emit socket event
+          if (socket) {
+            socket.emit('placeBet', {
+              amount,
+              targetPlayerId: selectedCar,
+              betterAddress: address,
+              transactionHash: status.asInBlock.toString(),
+              itemId: selectedCarItemId // Include the item ID
+            });
+          }
+          
+          // Close modal
+          setShowBetModal(false);
+          setSelectedCar(null);
+          setSelectedCarItemId(null); // Clear item ID
+          setBetAmount('');
+          setIsProcessingBet(false);
+        } else if (status.isFinalized) {
+          console.log(`🔒 Transaction finalized in block: ${status.asFinalized}`);
+        }
+      }).catch(error => {
+        console.error('Error sending transaction:', error);
+        setIsProcessingBet(false);
       });
+      
+    } catch (error) {
+      console.error('Error placing bet:', error);
+      setIsProcessingBet(false);
     }
-    
-    // Close modal
-    setShowBetModal(false);
-    setSelectedCar(null);
-    setBetAmount('');
   };
 
   // Generate a list of all players to display (avoiding duplicates)
@@ -558,6 +635,19 @@ const WaitingArena = () => {
     return Array.from(playersMap.values());
   })();
 
+  // Modified helper function to debug player data including detailed item ID info
+  const logPlayerData = (player) => {
+    console.group(`Player Data: ${player.id}`);
+    console.log(`Player ID: ${player.id}`);
+    console.log(`Item ID: ${player.itemId || 'NOT FOUND'}`);
+    console.log(`Car Color: ${player.carColor}`);
+    console.log(`Source: ${player.source}`);
+    console.log(`Is Participant: ${player.isParticipant}`);
+    console.log('Full player data:', player);
+    console.groupEnd();
+    return null; // Don't render anything
+  };
+
   return (
     <Container>
       <Header>
@@ -587,6 +677,13 @@ const WaitingArena = () => {
             <PlayerName>You{playerNFTs.length > 0 ? ` (${playerNFTs[0].name})` : ''}</PlayerName>
             <StatusBadge isReady={true}>Ready</StatusBadge>
             
+            {/* Display item ID if available */}
+            {playerNFTs.length > 0 && (
+              <div style={{ marginTop: '5px', fontSize: '0.8rem', color: '#666' }}>
+                Item ID: {playerNFTs[0].id}
+              </div>
+            )}
+            
             {betsByPlayer[socket?.id] && (
               <BetCounterBadge>{formatWND(betsByPlayer[socket?.id])}</BetCounterBadge>
             )}
@@ -613,33 +710,49 @@ const WaitingArena = () => {
         )}
         
         {/* Combined remote players list - avoiding duplicates */}
-        {combinedPlayers.map(player => (
-          <PlayerCard key={player.id}>
-            <CarImage src={getCarImage(player.carColor)} alt="Player car" />
-            <PlayerName>
-              {player.name || `Player ${player.id.substring(0, 6)}`}
-            </PlayerName>
-            <StatusBadge isReady={player.ready}>
-              {player.ready ? 'Ready' : 'Waiting'}
-            </StatusBadge>
-            
-            {betsByPlayer[player.id] && (
-              <BetCounterBadge>{formatWND(betsByPlayer[player.id])}</BetCounterBadge>
-            )}
-            
-            {address && (
-              <BetButton onClick={() => handleOpenBetModal(player.id)}>
-                Place Bet
-              </BetButton>
-            )}
-            
-            {address && betsByAddress[player.id] && (
-              <div style={{ marginTop: '10px', fontSize: '0.8rem', color: '#666' }}>
-                Your bet: {formatWND(betsByAddress[player.id])}
+        {combinedPlayers.map(player => {
+          // Log player data for debugging purposes
+          logPlayerData(player);
+
+          return (
+            <PlayerCard key={player.id}>
+              <CarImage src={getCarImage(player.carColor)} alt="Player car" />
+              <PlayerName>
+                {player.name || `Player ${player.id.substring(0, 6)}`}
+              </PlayerName>
+              <StatusBadge isReady={player.ready}>
+                {player.ready ? 'Ready' : 'Waiting'}
+              </StatusBadge>
+              
+              {/* Display item ID if available */}
+              <div style={{ marginTop: '5px', fontSize: '0.8rem', color: '#666' }}>
+                Item ID: {player.itemId || 'Not available'}
               </div>
-            )}
-          </PlayerCard>
-        ))}
+              
+              {betsByPlayer[player.id] && (
+                <BetCounterBadge>{formatWND(betsByPlayer[player.id])}</BetCounterBadge>
+              )}
+              
+              {address && player.itemId && (
+                <BetButton onClick={() => handleOpenBetModal(player.id, player.itemId)}>
+                  Place Bet
+                </BetButton>
+              )}
+              
+              {address && !player.itemId && (
+                <div style={{ marginTop: '10px', fontSize: '0.8rem', color: '#d32f2f' }}>
+                  Can't bet - No item ID
+                </div>
+              )}
+              
+              {address && betsByAddress[player.id] && (
+                <div style={{ marginTop: '10px', fontSize: '0.8rem', color: '#666' }}>
+                  Your bet: {formatWND(betsByAddress[player.id])}
+                </div>
+              )}
+            </PlayerCard>
+          );
+        })}
       </PlayersContainer>
       
       {/* Admin button for testing - remove in production */}
@@ -687,9 +800,9 @@ const WaitingArena = () => {
               <CancelButton onClick={handleCancelBet}>Cancel</CancelButton>
               <SubmitButton 
                 onClick={handlePlaceBet}
-                disabled={!betAmount || parseFloat(betAmount) <= 0 || !selectedCar}
+                disabled={!betAmount || parseFloat(betAmount) <= 0 || !selectedCar || isProcessingBet}
               >
-                Place Bet
+                {isProcessingBet ? 'Processing...' : 'Place Bet'}
               </SubmitButton>
             </ModalButtonsContainer>
           </ModalContent>
