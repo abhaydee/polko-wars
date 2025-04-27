@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { useBox, useRaycastVehicle } from "@react-three/cannon";
 import { useFrame, useLoader } from "@react-three/fiber";
 import { useEffect, useRef } from "react";
-import { Quaternion, Vector3, Euler } from "three";
+import { Quaternion, Vector3, Euler, MeshStandardMaterial, Color } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { useControls } from "./useControls";
 import { useWheels } from "./useWheels";
@@ -11,7 +11,7 @@ import { useCarPosition } from "./CarPositionContext";
 import { toast } from "react-toastify";
 import { SocketContext } from './SocketContext';
 
-export function Car({ thirdPerson }) {
+export function Car({ thirdPerson, color = '#ff0000' }) {
   const { updateCarPosition } = useCarPosition();
   const { socket } = useContext(SocketContext);
   
@@ -58,6 +58,58 @@ export function Car({ thirdPerson }) {
   const lastUpdateTime = useRef(Date.now());
 
   useControls(vehicleApi, chassisApi, setNitroActive, setCurrentControls);
+
+  // Apply color to the car model
+  useEffect(() => {
+    if (!result) return;
+
+    result.traverse((child) => {
+      if (child.isMesh && child.material) {
+        // Clone the material to avoid affecting other instances
+        if (Array.isArray(child.material)) {
+          child.material = child.material.map(mat => {
+            const newMat = mat.clone();
+            // Only update the main body parts, not windows, lights, etc.
+            if (mat.name && mat.name.toLowerCase().includes('body')) {
+              newMat.color = new Color(color);
+            }
+            return newMat;
+          });
+        } else {
+          child.material = child.material.clone();
+          // Only update the main body parts, not windows, lights, etc.
+          if (child.material.name && child.material.name.toLowerCase().includes('body')) {
+            child.material.color = new Color(color);
+          }
+        }
+      }
+    });
+
+    let mesh = result;
+    mesh.scale.set(0.0012, 0.0012, 0.0012);
+    mesh.children[0].position.set(-365, -18, -67);
+    
+    // This is a fallback if the model doesn't have proper material names
+    // Find the main body mesh and apply color
+    const bodyParts = result.children.filter(child => 
+      child.name.toLowerCase().includes('body') || 
+      child.name.toLowerCase().includes('car') ||
+      child.name.toLowerCase().includes('chassis')
+    );
+    
+    bodyParts.forEach(part => {
+      if (part.material) {
+        if (Array.isArray(part.material)) {
+          part.material.forEach(mat => {
+            mat.color = new Color(color);
+          });
+        } else {
+          part.material.color = new Color(color);
+        }
+      }
+    });
+    
+  }, [result, color]);
 
   // Debug position updates with direct chassis API subscription
   useEffect(() => {
@@ -138,6 +190,7 @@ export function Car({ thirdPerson }) {
           rotation: rotationData,
           velocity: velocityData,
           controls: controls,
+          carColor: color,
           timestamp: Date.now()
         });
         
@@ -155,25 +208,17 @@ export function Car({ thirdPerson }) {
 
     // Third person camera
     if (thirdPerson) {
-      let wDir = new Vector3(0, 0, 1);
-      wDir.applyQuaternion(quaternion);
-      wDir.normalize();
+    let wDir = new Vector3(0, 0, 1);
+    wDir.applyQuaternion(quaternion);
+    wDir.normalize();
 
-      let cameraPosition = position.clone().add(wDir.clone().multiplyScalar(1).add(new Vector3(0, 0.3, 0)));
-      
-      wDir.add(new Vector3(0, 0.2, 0));
-      state.camera.position.copy(cameraPosition);
-      state.camera.lookAt(position);
+    let cameraPosition = position.clone().add(wDir.clone().multiplyScalar(1).add(new Vector3(0, 0.3, 0)));
+    
+    wDir.add(new Vector3(0, 0.2, 0));
+    state.camera.position.copy(cameraPosition);
+    state.camera.lookAt(position);
     }
   });
-
-  useEffect(() => {
-    if (!result) return;
-
-    let mesh = result;
-    mesh.scale.set(0.0012, 0.0012, 0.0012);
-    mesh.children[0].position.set(-365, -18, -67);
-  }, [result]);
 
   useEffect(() => {
     if (nitroActive) {

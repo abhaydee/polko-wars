@@ -8,6 +8,7 @@ import LeaderBoard from "./LeaderBoard";
 import Profile from "./Profile";
 import Marketplace from "./Marketplace";
 import LobbyPage from "./LobbyPage";
+import Explore from "./Explore";
 import Stake from "./Stake";
 import { SocketProvider } from "./SocketContext";
 import { CarPositionProvider } from "./CarPositionContext";
@@ -32,7 +33,7 @@ const App = () => {
               <Route path="/leaderBoard" element={<LeaderBoard/> } />
               <Route path="/profile" element={<Profile/> } />
               <Route path="/marketplace" element={<Marketplace/> } />
-              <Route path="/lobby" element={<LobbyPage/> } />
+              <Route path="/explore" element={<Explore/> } />
               <Route path="/stake" element={<Stake/> } />
               
               {/* Pass imported data to PlayMe */}
@@ -40,6 +41,7 @@ const App = () => {
                 path="/play-me"
                 element={<PlayMe importedData={importedData}/>}
               />
+              <Route path="/lobby" element={<LobbyPage/> } />
       
               {/* Render Select component and provide the callback */}
               {/* <Route

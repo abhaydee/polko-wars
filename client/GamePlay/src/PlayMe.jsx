@@ -13,6 +13,7 @@ import { ConnectButton, useActiveAccount, useWalletBalance, useSendTransaction }
 import { prepareContractCall, getContract, defineChain } from "thirdweb";
 import { ConnectEmbed } from "thirdweb/react";
 import { createWallet, inAppWallet } from "thirdweb/wallets";
+import { useLocation } from "react-router-dom";
 
 const wallets = [
   inAppWallet({
@@ -61,8 +62,11 @@ const PlayMe = ({ importedData }) => {
   const [timer, setTimer] = useState(60);
   const [gameStarted, setGameStarted] = useState(false);
   const activeAccount = useActiveAccount();
-  const address = activeAccount?.address
-  console.log(address)
+  const address = activeAccount?.address;
+  const location = useLocation();
+  
+  // Get car color from navigation state or use a default
+  const carColor = location?.state?.carColor || localStorage.getItem('carColor') || '#ff0000';
 
   const handleFinishLinePickup = (exportCallback) => {
     drawRef.current = exportCallback;
@@ -131,6 +135,7 @@ const PlayMe = ({ importedData }) => {
               onPickup={handlePickup}
               setGameStarted={setGameStarted}
               notify={notify}
+              carColor={carColor}
             />
           </Physics>
         </Canvas>

@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react';
 import { useLoader, useFrame } from "@react-three/fiber";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { Color } from "three";
 
 export function RemotePlayer({ playerData }) {
   const carRef = useRef();
@@ -29,6 +30,58 @@ export function RemotePlayer({ playerData }) {
     
     console.log("Remote player car model prepared");
   }, [carModel]);
+  
+  // Apply car color when player data changes or model is loaded
+  useEffect(() => {
+    if (!carModelRef.current || !playerData) return;
+    
+    // Default color if not provided
+    const carColor = playerData.carColor || '#ff0000';
+    
+    // Apply color to all meshes in the model
+    carModelRef.current.traverse((child) => {
+      if (child.isMesh && child.material) {
+        // Clone the material to avoid affecting other instances
+        if (Array.isArray(child.material)) {
+          child.material = child.material.map(mat => {
+            const newMat = mat.clone();
+            // Only update the main body parts, not windows, lights, etc.
+            if (mat.name && mat.name.toLowerCase().includes('body')) {
+              newMat.color = new Color(carColor);
+            }
+            return newMat;
+          });
+        } else {
+          child.material = child.material.clone();
+          // Only update the main body parts, not windows, lights, etc.
+          if (child.material.name && child.material.name.toLowerCase().includes('body')) {
+            child.material.color = new Color(carColor);
+          }
+        }
+      }
+    });
+    
+    // This is a fallback if the model doesn't have proper material names
+    // Find the main body mesh and apply color
+    const bodyParts = carModelRef.current.children.filter(child => 
+      child.name.toLowerCase().includes('body') || 
+      child.name.toLowerCase().includes('car') ||
+      child.name.toLowerCase().includes('chassis')
+    );
+    
+    bodyParts.forEach(part => {
+      if (part.material) {
+        if (Array.isArray(part.material)) {
+          part.material.forEach(mat => {
+            mat.color = new Color(carColor);
+          });
+        } else {
+          part.material.color = new Color(carColor);
+        }
+      }
+    });
+    
+  }, [carModelRef.current, playerData]);
   
   // Update the target position when playerData changes
   useEffect(() => {
@@ -72,7 +125,7 @@ export function RemotePlayer({ playerData }) {
         <primitive 
           object={carModelRef.current} 
           rotation-y={Math.PI} 
-          position={[0, 0.1, 0]} // Raised position to be above ground
+          position={[0, 0, 0]} // Raised position to be above ground
         />
       )}
     </group>

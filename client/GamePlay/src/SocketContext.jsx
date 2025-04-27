@@ -9,6 +9,7 @@ export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
   const [remotePlayers, setRemotePlayers] = useState({});
   const [collectedCoins, setCollectedCoins] = useState({});
+  const [carColor, setCarColor] = useState(localStorage.getItem('carColor') || '#ff0000');
 
   // Helper to update a specific player's data
   const updatePlayerData = useCallback((playerId, newData) => {
@@ -46,6 +47,11 @@ export const SocketProvider = ({ children }) => {
     // Event handlers
     const handleConnect = () => {
       console.log('Connected to server with ID:', newSocket.id);
+      
+      // Send the player's car color to the server
+      const playerCarColor = localStorage.getItem('carColor') || '#ff0000';
+      newSocket.emit('playerInit', { carColor: playerCarColor });
+      setCarColor(playerCarColor);
     };
 
     const handleDisconnect = () => {
@@ -92,6 +98,13 @@ export const SocketProvider = ({ children }) => {
         updatePlayerData(player.id, player);
       }
     };
+    
+    const handlePlayerUpdated = (player) => {
+      console.log('Player updated:', player);
+      if (player && player.id) {
+        updatePlayerData(player.id, player);
+      }
+    };
 
     const handlePlayerDisconnected = (playerId) => {
       console.log('Player disconnected:', playerId);
@@ -125,6 +138,7 @@ export const SocketProvider = ({ children }) => {
     newSocket.on('currentPlayers', handleCurrentPlayers);
     newSocket.on('newPlayer', handleNewPlayer);
     newSocket.on('playerMoved', handlePlayerMoved);
+    newSocket.on('playerUpdated', handlePlayerUpdated);
     newSocket.on('playerDisconnected', handlePlayerDisconnected);
     newSocket.on('currentCollectedCoins', handleCurrentCollectedCoins);
     newSocket.on('coinCollectionUpdated', handleCoinCollectionUpdated);
@@ -136,12 +150,29 @@ export const SocketProvider = ({ children }) => {
       newSocket.off('currentPlayers', handleCurrentPlayers);
       newSocket.off('newPlayer', handleNewPlayer);
       newSocket.off('playerMoved', handlePlayerMoved);
+      newSocket.off('playerUpdated', handlePlayerUpdated);
       newSocket.off('playerDisconnected', handlePlayerDisconnected);
       newSocket.off('currentCollectedCoins', handleCurrentCollectedCoins);
       newSocket.off('coinCollectionUpdated', handleCoinCollectionUpdated);
       newSocket.disconnect();
     };
   }, [updatePlayerData]);
+
+  // Update car color when changed in localStorage
+  useEffect(() => {
+    const handleStorageChange = () => {
+      const newColor = localStorage.getItem('carColor') || '#ff0000';
+      setCarColor(newColor);
+      
+      // Send updated color to server if connected
+      if (socket && socket.connected) {
+        socket.emit('playerInit', { carColor: newColor });
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [socket]);
 
   // Set up a timer to remove stale players (if server didn't notify us properly)
   useEffect(() => {
@@ -176,7 +207,7 @@ export const SocketProvider = ({ children }) => {
   }, [socket]);
 
   return (
-    <SocketContext.Provider value={{ socket, remotePlayers, collectedCoins, collectCoin }}>
+    <SocketContext.Provider value={{ socket, remotePlayers, collectedCoins, collectCoin, carColor }}>
       {children}
     </SocketContext.Provider>
   );

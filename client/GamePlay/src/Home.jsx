@@ -109,7 +109,7 @@ const Home = () => {
 
           {address && (
           <Button>
-            <Link to="/lobby" style={{ textDecoration: 'none', color: '#fff' }}>Lobby</Link>
+            <Link to="/explore" style={{ textDecoration: 'none', color: '#fff' }}>Explore</Link>
           </Button>
           )}
           

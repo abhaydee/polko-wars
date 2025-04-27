@@ -29,7 +29,7 @@ const userInputReducer = (state, action) => {
   }
 };
 
-export function Scene({ onFinishLinePickup, onPickup, setGameStarted, notify }) {
+export function Scene({ onFinishLinePickup, onPickup, setGameStarted, notify, carColor }) {
   const [thirdPerson, setThirdPerson] = useState(false);
   const [cameraPosition, setCameraPosition] = useState([-6, 3.9, 6.21]);
   const [points, setPoints] = useState(0);
@@ -204,7 +204,7 @@ export function Scene({ onFinishLinePickup, onPickup, setGameStarted, notify }) 
         <FinishLine scale={0.1} position={[-1, 0.7, 0]} rotation-y={Math.PI} onPickup={handleFinishLinePickupInternal} />
       )}
       <StartLine scale={0.003} position={[-1, 0, -1]} onPickup={handleStartLinePickup} />
-      <Car thirdPerson={thirdPerson} />
+      <Car thirdPerson={thirdPerson} color={carColor} />
       <Billboards />
       
       {/* Render remote players with position markers */}
@@ -217,32 +217,6 @@ export function Scene({ onFinishLinePickup, onPickup, setGameStarted, notify }) 
         return (
           <group key={player.id}>
             <RemotePlayer playerData={player} />
-            
-            {/* Visual marker above the car for easier visibility */}
-            <mesh 
-              position={[
-                player.position.x, 
-                player.position.y + 0.4, 
-                player.position.z
-              ]}
-              key={`marker-${player.id}`}
-            >
-              <boxGeometry args={[0.05, 0.2, 0.05]} />
-              <meshStandardMaterial color="red" emissive="red" emissiveIntensity={0.5} />
-            </mesh>
-            
-            {/* Small flag for identification */}
-            <mesh 
-              position={[
-                player.position.x, 
-                player.position.y + 0.55, 
-                player.position.z
-              ]}
-              key={`flag-${player.id}`}
-            >
-              <sphereGeometry args={[0.05, 16, 16]} />
-              <meshStandardMaterial color="yellow" emissive="yellow" emissiveIntensity={0.5} />
-            </mesh>
           </group>
         );
       })}

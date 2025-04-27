@@ -60,15 +60,27 @@ const movePlayersRandomly = () => {
 io.on('connection', (socket) => {
   console.log(`Player connected: ${socket.id}`);
   
-  // Add new player
+  // Add new player with default values
   players[socket.id] = {
     id: socket.id,
     position: { x: -1, y: 0, z: -0.2 }, // Default position
     rotation: { x: 0, y: 0, z: 0 },
     controls: {},
+    carColor: '#ff0000', // Default red color
     lastUpdate: Date.now(),
     collectedCoins: [] // Track coins collected by this player
   };
+  
+  // Handle player initialization with car color
+  socket.on('playerInit', (data) => {
+    if (data && data.carColor) {
+      players[socket.id].carColor = data.carColor;
+      console.log(`Player ${socket.id.substring(0, 6)} initialized with car color: ${data.carColor}`);
+      
+      // Broadcast the updated player data to all other clients
+      socket.broadcast.emit('playerUpdated', players[socket.id]);
+    }
+  });
   
   // Log player count
   console.log(`Total players connected: ${Object.keys(players).length}`);
@@ -113,6 +125,11 @@ io.on('connection', (socket) => {
             typeof data.rotation.y === 'number' && 
             typeof data.rotation.z === 'number') {
           players[socket.id].rotation = data.rotation;
+        }
+        
+        // Update car color if provided
+        if (data.carColor) {
+          players[socket.id].carColor = data.carColor;
         }
         
         // Update controls if provided
