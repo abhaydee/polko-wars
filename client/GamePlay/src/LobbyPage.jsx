@@ -3,6 +3,9 @@ import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { usePolkadotWallet } from './PolkadotWalletContext';
 import PolkadotConnectButton from './components/PolkadotConnectButton';
+import { mintNFT, getCarInfo, getUserNFTs } from './utils/nft-minting';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const Container = styled.div`
   display: flex;
@@ -10,6 +13,8 @@ const Container = styled.div`
   align-items: center;
   padding: 20px;
   font-family: Arial, sans-serif;
+  max-height: 100vh;
+  overflow-y: auto;
 `;
 
 const CardContainer = styled.div`
@@ -119,6 +124,37 @@ const StartButton = styled.button`
   }
 `;
 
+const MintButton = styled.button`
+  background-color: #f0ad4e;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  text-align: center;
+  text-decoration: none;
+  font-size: 16px;
+  margin: 20px 0;
+  cursor: pointer;
+  border-radius: 4px;
+  font-weight: bold;
+  transition: background-color 0.3s;
+
+  &:hover {
+    background-color: #ec971f;
+  }
+
+  &:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+  }
+`;
+
+const ButtonRow = styled.div`
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 20px;
+`;
+
 // Available car colors with corresponding images
 const CAR_OPTIONS = [
   { color: '#ff0000', name: 'Red', image: '/cars/car red.png' },
@@ -127,11 +163,66 @@ const CAR_OPTIONS = [
   { color: '#ffff00', name: 'Yellow', image: '/cars/car yellow.png' }
 ];
 
+const NFTGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 20px;
+  width: 100%;
+  margin-top: 20px;
+`;
+
+const NFTCard = styled.div`
+  background-color: #ffffff;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: transform 0.2s;
+
+  &:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+  }
+`;
+
+const NFTImage = styled.img`
+  width: 100%;
+  height: 120px;
+  object-fit: contain;
+  margin-bottom: 10px;
+  border-radius: 4px;
+`;
+
+const NFTTitle = styled.h4`
+  margin: 5px 0;
+  color: #333;
+`;
+
+const NFTInfo = styled.p`
+  margin: 5px 0;
+  color: #666;
+  font-size: 14px;
+`;
+
+const EmptyState = styled.div`
+  margin-top: 20px;
+  padding: 30px;
+  text-align: center;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  color: #666;
+`;
+
 const LobbyPage = () => {
   const navigate = useNavigate();
   const { activeAccount } = usePolkadotWallet();
   const address = activeAccount?.address;
   const [selectedColor, setSelectedColor] = useState('#ff0000'); // Default: red
+  const [isMinting, setIsMinting] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [mintedCars, setMintedCars] = useState([]);
 
   const handleColorSelect = (color) => {
     setSelectedColor(color);
@@ -147,6 +238,30 @@ const LobbyPage = () => {
     }
   }, []);
 
+  // Fetch user's NFTs when wallet is connected
+  useEffect(() => {
+    if (address) {
+      fetchUserNFTs();
+    } else {
+      setMintedCars([]);
+    }
+  }, [address]);
+
+  const fetchUserNFTs = async () => {
+    if (!address) return;
+    
+    try {
+      setIsLoading(true);
+      const nfts = await getUserNFTs(address);
+      setMintedCars(nfts);
+    } catch (error) {
+      console.error('Error fetching NFTs:', error);
+      toast.error(`Failed to fetch NFTs: ${error.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleF2P = () => {
     // Navigate to play-me with the selected color as state
     navigate('/play-me', { state: { carColor: selectedColor } });
@@ -156,8 +271,46 @@ const LobbyPage = () => {
     navigate('/stake', { state: { carColor: selectedColor } });
   };
 
+  const handleMintCar = async () => {
+    if (!address) {
+      toast.error('Please connect your wallet first');
+      return;
+    }
+
+    try {
+      setIsMinting(true);
+      toast.info('Preparing to mint your race car NFT...');
+
+      // Get car info for the selected color
+      const carInfo = getCarInfo(selectedColor);
+      
+      // Mint the NFT with the predefined item ID
+      const result = await mintNFT(address, carInfo.itemId, carInfo.ipfsLink);
+      
+      if (result.success) {
+        toast.success(`Successfully minted your ${carInfo.name} NFT!`);
+        // Fetch updated NFTs after minting
+        await fetchUserNFTs();
+      }
+    } catch (error) {
+      console.error('Error minting NFT:', error);
+      toast.error(`Failed to mint NFT: ${error.message}`);
+    } finally {
+      setIsMinting(false);
+    }
+  };
+
+  const isMinted = mintedCars.some(car => car.color === selectedColor);
+
+  // Helper function to get car image by color
+  const getCarImageByColor = (color) => {
+    const car = CAR_OPTIONS.find(car => car.color === color);
+    return car ? car.image : '/cars/car red.png'; // default to red car if not found
+  };
+
   return (
     <Container>
+      <ToastContainer />
       <h1>Polko Wars Lobby</h1>
       
       <WalletSection>
@@ -181,6 +334,49 @@ const LobbyPage = () => {
         </CarSelector>
         
         <p>Selected car: {CAR_OPTIONS.find(car => car.color === selectedColor)?.name}</p>
+        
+        <ButtonRow>
+          <MintButton 
+            onClick={handleMintCar} 
+            disabled={!address || isMinting || isMinted}
+          >
+            {isMinting ? 'Minting...' : isMinted ? 'Already Minted' : 'Mint Race Car NFT'}
+          </MintButton>
+          {address && (
+            <MintButton 
+              onClick={fetchUserNFTs} 
+              disabled={isLoading}
+            >
+              {isLoading ? 'Loading...' : 'Refresh NFTs'}
+            </MintButton>
+          )}
+        </ButtonRow>
+        
+        {isLoading ? (
+          <div style={{ marginTop: '20px' }}>Loading your NFTs...</div>
+        ) : mintedCars.length > 0 ? (
+          <div style={{ marginTop: '20px', width: '100%' }}>
+            <h3>Your NFT Race Cars</h3>
+            <NFTGrid>
+              {mintedCars.map(car => (
+                <NFTCard key={car.id}>
+                  <NFTImage 
+                    src={getCarImageByColor(car.color)} 
+                    alt={car.name} 
+                  />
+                  <NFTTitle>{car.name}</NFTTitle>
+                  <NFTInfo>Item ID: {car.id}</NFTInfo>
+                  <NFTInfo>Collection: {car.collectionId}</NFTInfo>
+                </NFTCard>
+              ))}
+            </NFTGrid>
+          </div>
+        ) : address ? (
+          <EmptyState>
+            <h3>No NFTs Found</h3>
+            <p>You don't have any minted race cars yet. Mint one to get started!</p>
+          </EmptyState>
+        ) : null}
       </CustomizationSection>
 
       <CardContainer>
