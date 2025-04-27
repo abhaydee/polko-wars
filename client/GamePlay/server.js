@@ -20,6 +20,82 @@ const players = {};
 const collectedCoins = {};
 let updateCounter = 0;
 
+// Waiting room functionality
+const waitingRoom = {
+  players: [],
+  startTime: null,
+  timeLeft: 5 * 60, // 5 minutes in seconds
+  timerActive: false,
+  gameStarting: false
+};
+
+// Start the waiting room timer
+function startWaitingRoomTimer() {
+  if (waitingRoom.timerActive) return;
+  
+  waitingRoom.startTime = Date.now();
+  waitingRoom.timeLeft = 5 * 60; // 5 minutes
+  waitingRoom.timerActive = true;
+  waitingRoom.gameStarting = false;
+  
+  console.log('Waiting room timer started. 5 minutes until race begins!');
+  
+  // Create an interval that updates the timer every second
+  const timerInterval = setInterval(() => {
+    const elapsedSeconds = Math.floor((Date.now() - waitingRoom.startTime) / 1000);
+    waitingRoom.timeLeft = Math.max(0, 5 * 60 - elapsedSeconds);
+    
+    // Broadcast time updates every 5 seconds
+    if (elapsedSeconds % 5 === 0 || waitingRoom.timeLeft <= 10) {
+      io.emit('waitingRoomUpdate', {
+        players: waitingRoom.players,
+        timeLeft: waitingRoom.timeLeft,
+        gameStarting: waitingRoom.gameStarting
+      });
+    }
+    
+    // When 10 seconds remain, notify players the game is about to start
+    if (waitingRoom.timeLeft === 10) {
+      console.log('Game starting in 10 seconds!');
+      waitingRoom.gameStarting = true;
+      io.emit('waitingRoomUpdate', {
+        players: waitingRoom.players,
+        timeLeft: waitingRoom.timeLeft,
+        gameStarting: true
+      });
+    }
+    
+    // When time runs out, start the game
+    if (waitingRoom.timeLeft <= 0) {
+      clearInterval(timerInterval);
+      startGame();
+    }
+  }, 1000);
+}
+
+// Start the game
+function startGame() {
+  console.log('Starting game!');
+  waitingRoom.timerActive = false;
+  waitingRoom.gameStarting = false;
+  
+  // Mark all players as ready
+  waitingRoom.players.forEach(player => {
+    player.ready = true;
+  });
+  
+  // Notify all clients the game is starting
+  io.emit('startGame');
+  
+  // Reset waiting room after 5 seconds
+  setTimeout(() => {
+    waitingRoom.players = [];
+    waitingRoom.startTime = null;
+    waitingRoom.timeLeft = 5 * 60;
+    console.log('Waiting room reset');
+  }, 5000);
+}
+
 // Debug helper function
 function logPlayerPositions() {
   console.log("\n===== CURRENT PLAYER POSITIONS =====");
@@ -80,6 +156,113 @@ io.on('connection', (socket) => {
       // Broadcast the updated player data to all other clients
       socket.broadcast.emit('playerUpdated', players[socket.id]);
     }
+  });
+  
+  // Register a player in the waiting arena
+  socket.on('registerWaitingArena', (data) => {
+    console.log(`Player ${socket.id.substring(0, 6)} registered in waiting arena`);
+    
+    // Add player to waiting room if not already there
+    const existingPlayerIndex = waitingRoom.players.findIndex(p => p.id === socket.id);
+    
+    if (existingPlayerIndex === -1) {
+      // Create standardized player object
+      const playerInfo = {
+        id: socket.id,
+        carColor: data.carColor || '#ff0000',
+        name: `Player ${socket.id.substring(0, 6)}`, // Use consistent naming format
+        address: data.address || 'anonymous',
+        joinedAt: Date.now(),
+        ready: false
+      };
+      
+      // Add to waiting room
+      waitingRoom.players.push(playerInfo);
+      
+      // Update regular players info too for consistency
+      if (players[socket.id]) {
+        players[socket.id].carColor = playerInfo.carColor;
+        players[socket.id].name = playerInfo.name;
+      }
+      
+      console.log(`Waiting room now has ${waitingRoom.players.length} players`);
+      
+      // Start the timer if this is the first player
+      if (waitingRoom.players.length === 1 && !waitingRoom.timerActive) {
+        startWaitingRoomTimer();
+      }
+    } else {
+      // Update existing player data
+      waitingRoom.players[existingPlayerIndex].carColor = data.carColor || waitingRoom.players[existingPlayerIndex].carColor;
+      if (data.address) {
+        waitingRoom.players[existingPlayerIndex].address = data.address;
+      }
+    }
+    
+    // Send current waiting room status to the client
+    socket.emit('waitingRoomUpdate', {
+      players: waitingRoom.players,
+      timeLeft: waitingRoom.timeLeft,
+      gameStarting: waitingRoom.gameStarting
+    });
+    
+    // Notify all other clients
+    socket.broadcast.emit('waitingRoomUpdate', {
+      players: waitingRoom.players,
+      timeLeft: waitingRoom.timeLeft,
+      gameStarting: waitingRoom.gameStarting
+    });
+  });
+  
+  // Handle player leaving the waiting arena
+  socket.on('leaveWaitingArena', () => {
+    const playerIndex = waitingRoom.players.findIndex(p => p.id === socket.id);
+    
+    if (playerIndex !== -1) {
+      waitingRoom.players.splice(playerIndex, 1);
+      console.log(`Player ${socket.id.substring(0, 6)} left waiting arena`);
+      
+      // Notify all clients
+      io.emit('waitingRoomUpdate', {
+        players: waitingRoom.players,
+        timeLeft: waitingRoom.timeLeft,
+        gameStarting: waitingRoom.gameStarting
+      });
+    }
+  });
+  
+  // Handle a player indicating ready to start
+  socket.on('readyToStart', () => {
+    const playerIndex = waitingRoom.players.findIndex(p => p.id === socket.id);
+    
+    if (playerIndex !== -1) {
+      waitingRoom.players[playerIndex].ready = true;
+      console.log(`Player ${socket.id.substring(0, 6)} is ready to start`);
+      
+      // Check if all players are ready
+      const allReady = waitingRoom.players.every(p => p.ready);
+      
+      if (allReady && waitingRoom.players.length > 0) {
+        console.log('All players ready, starting game soon!');
+        waitingRoom.gameStarting = true;
+        
+        // Start game after a short delay
+        setTimeout(startGame, 3000);
+      }
+      
+      // Notify all clients
+      io.emit('waitingRoomUpdate', {
+        players: waitingRoom.players,
+        timeLeft: waitingRoom.timeLeft,
+        gameStarting: waitingRoom.gameStarting
+      });
+    }
+  });
+  
+  // Force start game (admin/dev function)
+  socket.on('forceStartGame', () => {
+    console.log(`Game forced to start by ${socket.id.substring(0, 6)}`);
+    startGame();
   });
   
   // Log player count
@@ -195,6 +378,21 @@ io.on('connection', (socket) => {
   // Handle player disconnect
   socket.on('disconnect', () => {
     console.log(`Player disconnected: ${socket.id}`);
+    
+    // Remove from waiting room if present
+    const playerIndex = waitingRoom.players.findIndex(p => p.id === socket.id);
+    if (playerIndex !== -1) {
+      waitingRoom.players.splice(playerIndex, 1);
+      
+      // Notify waiting room participants
+      io.emit('waitingRoomUpdate', {
+        players: waitingRoom.players,
+        timeLeft: waitingRoom.timeLeft,
+        gameStarting: waitingRoom.gameStarting
+      });
+    }
+    
+    // Remove from active players
     delete players[socket.id];
     io.emit('playerDisconnected', socket.id);
     

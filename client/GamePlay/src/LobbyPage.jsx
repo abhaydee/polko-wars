@@ -264,12 +264,16 @@ const LobbyPage = () => {
 
   const handleF2P = () => {
     // Navigate to play-me with the selected color as state
-    navigate('/play-me', { state: { carColor: selectedColor } });
+    navigate('/waiting-arena', { state: { carColor: selectedColor } });
   };
 
-  const handleP2E = () => {
-    navigate('/stake', { state: { carColor: selectedColor } });
+  const handleBet = () => {
+    navigate('/waiting-arena', { state: { carColor: selectedColor } });
   };
+
+  // const handleP2E = () => {
+  //   navigate('/stake', { state: { carColor: selectedColor } });
+  // };
 
   const handleMintCar = async () => {
     if (!address) {
@@ -418,18 +422,19 @@ const LobbyPage = () => {
 
       <CardContainer>
         <Card onClick={handleF2P}>
-          <Title>Free Mode</Title>
-          <Description>Play for fun without staking tokens</Description>
-          <StartButton>Start Free Game</StartButton>
+          <Title>Register Car</Title>
+          <Description>Register your car to the waiting arena</Description>
+          <StartButton disabled={!address}>{address ? 'Register Car' : 'Connect Wallet to Play'}</StartButton>
         </Card>
-        
-        <Card onClick={handleP2E}>
-          <Title>Stake Mode</Title>
-          <Description>Stake tokens to earn rewards as you play</Description>
-          <StartButton disabled={!address}>
-            {address ? 'Stake & Play' : 'Connect Wallet to Play'}
-          </StartButton>
-        </Card>
+
+        {/* display only if the user has not registered a car */}
+        {mintedCars.length === 0 && (
+          <Card onClick={handleBet}> 
+            <Title>Bet</Title>
+            <Description>Bet on a car to win</Description>
+            <StartButton disabled={!address}>{address ? 'Bet' : 'Connect Wallet to Bet'}</StartButton>
+          </Card>
+        )}
       </CardContainer>
     </Container>
   );

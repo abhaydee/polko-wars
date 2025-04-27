@@ -12,7 +12,7 @@ import Explore from "./Explore";
 import Stake from "./Stake";
 import { SocketProvider } from "./SocketContext";
 import { CarPositionProvider } from "./CarPositionContext";
-
+import WaitingArena from "./WaitingArena";
 const App = () => {
     const [importedData, setImportedData] = useState(null);
 
@@ -35,6 +35,7 @@ const App = () => {
               <Route path="/marketplace" element={<Marketplace/> } />
               <Route path="/explore" element={<Explore/> } />
               <Route path="/stake" element={<Stake/> } />
+              <Route path="/waiting-arena" element={<WaitingArena/> } />
               
               {/* Pass imported data to PlayMe */}
               <Route
