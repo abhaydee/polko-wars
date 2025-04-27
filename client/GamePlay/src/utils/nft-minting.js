@@ -104,43 +104,78 @@ export const mintNFT = async (recipientAddress, itemId, ipfsLink, options = {}) 
 
 /**
  * Generate a unique item ID based on timestamp and random values
- * @returns {string} - A unique ID for the NFT
+ * @returns {number} - A unique numeric ID for the NFT
  */
 export const generateUniqueItemId = () => {
-  return `${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+  // Create a numeric ID using timestamp and random number
+  // We'll use the last 5 digits of timestamp + 5 random digits
+  // Starting with 20000 to avoid conflicts with our predefined IDs (10001-10004)
+  const timestamp = Date.now() % 100000; // Last 5 digits of timestamp
+  const random = Math.floor(Math.random() * 10000); // 4 random digits
+  
+  // Combine them to make a unique ID that fits within safe number range
+  // Using a high base number to ensure it doesn't conflict with predefined IDs
+  return 20000 + timestamp + random;
 };
 
 /**
- * Get metadata links and item IDs for different car types
+ * Get metadata links and info for different car types
  * @param {string} carColor - The color of the car
- * @returns {object} - IPFS link and item ID for the corresponding car color
+ * @returns {object} - IPFS link, item ID and name for the corresponding car color
  */
 export const getCarInfo = (carColor) => {
-  // Map of car colors to their IPFS metadata links and item IDs
+  // Map of car colors to their IPFS metadata links
   const carData = {
     '#ff0000': { 
       ipfsLink: 'ipfs://bafkreie3dbi5kv6jt3bvfxezgo64tcpdmy54ayhzmxwg5s56jh43d3hnlu',
-      itemId: 1, // Red car
+      itemId: 10001, // Red car - using higher IDs to avoid collisions
       name: 'Red Race Car'
     },
     '#ff8800': { 
       ipfsLink: 'ipfs://bafybeigaow4y26bexx7btnoirx7wvr5i47ku2xll2mts3pycy5wxj4nmum',
-      itemId: 2, // Orange car
+      itemId: 10002, // Orange car
       name: 'Orange Race Car'
     },
     '#00ff00': { 
       ipfsLink: 'ipfs://bafkreihe6263abseujllsit4z7svy2hzvfthidcqnzkw3unr72pde6duca',
-      itemId: 3, // Green car
+      itemId: 10003, // Green car
       name: 'Green Race Car'
     },
     '#ffff00': { 
       ipfsLink: 'ipfs://bafkreihwdorgi6h6yblklobp6iy45l6lh75whwftasi4ec7ftu3me57omy',
-      itemId: 4, // Yellow car
+      itemId: 10004, // Yellow car
       name: 'Yellow Race Car'
     }
   };
   
-  return carData[carColor] || carData['#ff0000']; // Default to red car
+  // Return the car data for the given color with no default fallback
+  return carData[carColor];
+};
+
+/**
+ * Get the car info for a specific NFT by its ID
+ * This is useful for identifying previously minted NFTs
+ * @param {number} itemId - The NFT's item ID
+ * @returns {object|null} Car info or null if not found
+ */
+export const getCarInfoById = (itemId) => {
+  // Map of specific item IDs to car colors
+  const specificIdMap = {
+    // Previously minted specific IDs
+    1245: { color: '#ff0000', name: 'Red Race Car' },
+    81768: { color: '#00ff00', name: 'Green Race Car' },
+    3: { color: '#00ff00', name: 'Green Race Car' },
+    
+    // Our predefined car IDs
+    10001: { color: '#ff0000', name: 'Red Race Car' },
+    10002: { color: '#ff8800', name: 'Orange Race Car' },
+    10003: { color: '#00ff00', name: 'Green Race Car' },
+    10004: { color: '#ffff00', name: 'Yellow Race Car' }
+    
+    // Add more mappings as users mint more NFTs
+  };
+  
+  return specificIdMap[itemId] || null;
 };
 
 /**
@@ -167,10 +202,12 @@ export const getUserNFTs = async (ownerAddress, options = {}) => {
     
     // Process the results
     const ownedNFTs = [];
+    const carColorMap = getCarColorsMap();
     
     for (const [key, _] of accountItems) {
       // Extract the itemId from the key
       const [_, __, itemId] = key.args;
+      const numericItemId = itemId.toNumber();
       
       // Get metadata for this item
       const metadata = await api.query.uniques.instanceMetadataOf(collectionId, itemId);
@@ -180,26 +217,46 @@ export const getUserNFTs = async (ownerAddress, options = {}) => {
         metadataStr = metadata.unwrap().data.toString();
       }
       
-      // Find the car color based on the item ID
-      let carColor = '#ff0000'; // Default
+      // Try to match car color by both item ID and IPFS link
+      let carColor = null;
+      let carName = null;
       
-      // Find car color by matching item ID with known car data
-      Object.entries(getCarColorsMap()).forEach(([color, data]) => {
-        if (data.itemId === itemId.toNumber()) {
-          carColor = color;
+      // First check if it's a known item ID
+      const knownCar = getCarInfoById(numericItemId);
+      if (knownCar) {
+        carColor = knownCar.color;
+        carName = knownCar.name;
+      } else {
+        // If not a known ID, try to match by IPFS link
+        for (const [color, data] of Object.entries(carColorMap)) {
+          if (data.ipfsLink === metadataStr) {
+            carColor = color;
+            carName = data.name;
+            break;
+          }
         }
-      });
+      }
       
-      // Get car info for matching the name
-      const carInfo = getCarInfo(carColor);
-      
-      ownedNFTs.push({
-        id: itemId.toNumber(),
-        color: carColor,
-        name: carInfo.name,
-        ipfsLink: metadataStr,
-        collectionId: collectionId
-      });
+      // If still no match, log it but include it with unknown type
+      if (!carColor) {
+        console.log(`⚠️ Could not identify car type for item ID ${numericItemId} with metadata ${metadataStr}`);
+        ownedNFTs.push({
+          id: numericItemId,
+          color: null,
+          name: `Unknown Car (ID: ${numericItemId})`,
+          ipfsLink: metadataStr,
+          collectionId: collectionId
+        });
+      } else {
+        // Add the identified car
+        ownedNFTs.push({
+          id: numericItemId,
+          color: carColor,
+          name: carName,
+          ipfsLink: metadataStr,
+          collectionId: collectionId
+        });
+      }
     }
     
     // Disconnect from the API
@@ -220,22 +277,22 @@ const getCarColorsMap = () => {
   const carData = {
     '#ff0000': { 
       ipfsLink: 'ipfs://bafkreie3dbi5kv6jt3bvfxezgo64tcpdmy54ayhzmxwg5s56jh43d3hnlu',
-      itemId: 1,
+      itemId: 10001, // Red car
       name: 'Red Race Car'
     },
     '#ff8800': { 
       ipfsLink: 'ipfs://bafybeigaow4y26bexx7btnoirx7wvr5i47ku2xll2mts3pycy5wxj4nmum',
-      itemId: 2,
+      itemId: 10002, // Orange car
       name: 'Orange Race Car'
     },
     '#00ff00': { 
       ipfsLink: 'ipfs://bafkreihe6263abseujllsit4z7svy2hzvfthidcqnzkw3unr72pde6duca',
-      itemId: 3,
+      itemId: 10003, // Green car
       name: 'Green Race Car'
     },
     '#ffff00': { 
       ipfsLink: 'ipfs://bafkreihwdorgi6h6yblklobp6iy45l6lh75whwftasi4ec7ftu3me57omy',
-      itemId: 4,
+      itemId: 10004, // Yellow car
       name: 'Yellow Race Car'
     }
   };

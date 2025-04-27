@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { usePolkadotWallet } from './PolkadotWalletContext';
 import PolkadotConnectButton from './components/PolkadotConnectButton';
-import { mintNFT, getCarInfo, getUserNFTs } from './utils/nft-minting';
+import { mintNFT, getCarInfo, getUserNFTs, generateUniqueItemId, getCarInfoById } from './utils/nft-minting';
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -284,11 +284,19 @@ const LobbyPage = () => {
       // Get car info for the selected color
       const carInfo = getCarInfo(selectedColor);
       
-      // Mint the NFT with the predefined item ID
-      const result = await mintNFT(address, carInfo.itemId, carInfo.ipfsLink);
+      if (!carInfo) {
+        toast.error(`Invalid car color selected: ${selectedColor}`);
+        return;
+      }
+      
+      // Use the predefined item ID if available, otherwise generate a random one
+      const itemId = carInfo.itemId || generateUniqueItemId();
+      
+      // Mint the NFT with the item ID
+      const result = await mintNFT(address, itemId, carInfo.ipfsLink);
       
       if (result.success) {
-        toast.success(`Successfully minted your ${carInfo.name} NFT!`);
+        toast.success(`Successfully minted your ${carInfo.name} NFT with ID: ${itemId}!`);
         // Fetch updated NFTs after minting
         await fetchUserNFTs();
       }
@@ -300,12 +308,29 @@ const LobbyPage = () => {
     }
   };
 
+  // Check if the currently selected car color has already been minted
   const isMinted = mintedCars.some(car => car.color === selectedColor);
 
-  // Helper function to get car image by color
-  const getCarImageByColor = (color) => {
-    const car = CAR_OPTIONS.find(car => car.color === color);
-    return car ? car.image : '/cars/car red.png'; // default to red car if not found
+  // Helper function to get car image by color or ID
+  const getCarImageByColorOrId = (color, id) => {
+    // First try to get car info from the known ID mapping
+    const knownCar = getCarInfoById(id);
+    if (knownCar) {
+      // Find the car option for this color
+      const carOption = CAR_OPTIONS.find(car => car.color === knownCar.color);
+      if (carOption) {
+        return carOption.image;
+      }
+    }
+    
+    // If we have a color but no known ID mapping, use the color
+    if (color) {
+      const car = CAR_OPTIONS.find(car => car.color === color);
+      if (car) return car.image;
+    }
+    
+    // Fallback to unknown car
+    return '/cars/car unknown.png';
   };
 
   return (
@@ -361,12 +386,24 @@ const LobbyPage = () => {
               {mintedCars.map(car => (
                 <NFTCard key={car.id}>
                   <NFTImage 
-                    src={getCarImageByColor(car.color)} 
+                    src={getCarImageByColorOrId(car.color, car.id)} 
                     alt={car.name} 
                   />
                   <NFTTitle>{car.name}</NFTTitle>
                   <NFTInfo>Item ID: {car.id}</NFTInfo>
                   <NFTInfo>Collection: {car.collectionId}</NFTInfo>
+                  {car.color && (
+                    <div 
+                      style={{
+                        width: '20px',
+                        height: '20px',
+                        backgroundColor: car.color,
+                        borderRadius: '50%',
+                        margin: '5px auto',
+                        border: '1px solid #ccc'
+                      }}
+                    />
+                  )}
                 </NFTCard>
               ))}
             </NFTGrid>
