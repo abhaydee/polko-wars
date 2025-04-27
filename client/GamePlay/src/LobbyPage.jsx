@@ -263,12 +263,23 @@ const LobbyPage = () => {
   };
 
   const handleF2P = () => {
-    // Navigate to play-me with the selected color as state
-    navigate('/waiting-arena', { state: { carColor: selectedColor } });
+    // Navigate to waiting-arena with the selected color as state
+    // Include fromLobby=true to indicate this is a participant
+    navigate('/waiting-arena', { 
+      state: { 
+        carColor: selectedColor,
+        fromLobby: true 
+      }
+    });
   };
 
   const handleBet = () => {
-    navigate('/waiting-arena', { state: { carColor: selectedColor } });
+    // Navigate to waiting-arena as a spectator/bettor
+    navigate('/waiting-arena', { 
+      state: { 
+        fromLobby: false 
+      }
+    });
   };
 
   // const handleP2E = () => {

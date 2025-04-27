@@ -22,11 +22,14 @@ let updateCounter = 0;
 
 // Waiting room functionality
 const waitingRoom = {
-  players: [],
+  players: [],     // Race participants
+  spectators: [],  // Betting-only users
   startTime: null,
   timeLeft: 5 * 60, // 5 minutes in seconds
   timerActive: false,
-  gameStarting: false
+  gameStarting: false,
+  bets: [], // Array of bet objects
+  totalPool: 0 // Total betting pool
 };
 
 // Start the waiting room timer
@@ -73,11 +76,48 @@ function startWaitingRoomTimer() {
   }, 1000);
 }
 
+// Process a new bet
+function processNewBet(bet) {
+  // Validate bet
+  if (!bet.amount || !bet.targetPlayerId || !bet.betterAddress) {
+    console.log('Invalid bet format:', bet);
+    return false;
+  }
+  
+  // Add to bets array
+  waitingRoom.bets.push({
+    ...bet,
+    timestamp: Date.now(),
+    id: `bet-${Date.now()}-${Math.floor(Math.random() * 10000)}`
+  });
+  
+  // Update total pool
+  waitingRoom.totalPool += parseFloat(bet.amount);
+  
+  console.log(`New bet: ${bet.amount} WND from ${bet.betterAddress.substring(0, 6)} on player ${bet.targetPlayerId.substring(0, 6)}`);
+  console.log(`Total pool now: ${waitingRoom.totalPool} WND`);
+  
+  // Broadcast updated bets
+  io.emit('betUpdate', {
+    bets: waitingRoom.bets,
+    totalPool: waitingRoom.totalPool
+  });
+  
+  return true;
+}
+
 // Start the game
 function startGame() {
   console.log('Starting game!');
   waitingRoom.timerActive = false;
   waitingRoom.gameStarting = false;
+  
+  // Determine winner (to be implemented with actual race results later)
+  // For now, just log the bets
+  if (waitingRoom.bets.length > 0) {
+    console.log(`Game started with ${waitingRoom.bets.length} bets totaling ${waitingRoom.totalPool} WND`);
+    // We'll handle bet resolution after the race
+  }
   
   // Mark all players as ready
   waitingRoom.players.forEach(player => {
@@ -92,6 +132,7 @@ function startGame() {
     waitingRoom.players = [];
     waitingRoom.startTime = null;
     waitingRoom.timeLeft = 5 * 60;
+    // Don't reset bets here, they'll be processed after the race
     console.log('Waiting room reset');
   }, 5000);
 }
@@ -158,9 +199,78 @@ io.on('connection', (socket) => {
     }
   });
   
+  // Handle player placing a bet
+  socket.on('placeBet', (betData) => {
+    if (!betData.amount || !betData.targetPlayerId || !betData.betterAddress) {
+      console.error(`Received invalid bet data from ${socket.id}:`, betData);
+      return;
+    }
+    
+    console.log(`Player ${socket.id.substring(0, 6)} placed bet of ${betData.amount} WND on player ${betData.targetPlayerId.substring(0, 6)}`);
+    
+    // Process the bet
+    const success = processNewBet({
+      amount: parseFloat(betData.amount),
+      targetPlayerId: betData.targetPlayerId,
+      betterAddress: betData.betterAddress,
+      betterSocketId: socket.id
+    });
+    
+    if (success) {
+      // Confirm bet to sender
+      socket.emit('betConfirmed', {
+        betData,
+        timestamp: Date.now()
+      });
+      
+      // Send updated bets to everyone
+      io.emit('betUpdate', {
+        bets: waitingRoom.bets,
+        totalPool: waitingRoom.totalPool
+      });
+    }
+  });
+  
+  // Handle spectators joining the waiting room (bet-only mode)
+  socket.on('joinAsSpectator', (data) => {
+    console.log(`Spectator ${socket.id.substring(0, 6)} joined waiting arena`);
+    
+    // Add to spectators if not already there
+    const existingSpectatorIndex = waitingRoom.spectators.findIndex(s => s.id === socket.id);
+    
+    if (existingSpectatorIndex === -1) {
+      waitingRoom.spectators.push({
+        id: socket.id,
+        address: data.address || 'anonymous',
+        joinedAt: Date.now()
+      });
+      
+      console.log(`Waiting room now has ${waitingRoom.spectators.length} spectators`);
+    }
+    
+    // Send current waiting room status to the spectator
+    socket.emit('waitingRoomUpdate', {
+      players: waitingRoom.players,
+      timeLeft: waitingRoom.timeLeft,
+      gameStarting: waitingRoom.gameStarting
+    });
+    
+    // Send current bets to the spectator
+    socket.emit('betUpdate', {
+      bets: waitingRoom.bets,
+      totalPool: waitingRoom.totalPool
+    });
+  });
+  
   // Register a player in the waiting arena
   socket.on('registerWaitingArena', (data) => {
     console.log(`Player ${socket.id.substring(0, 6)} registered in waiting arena`);
+    
+    // Check if they were a spectator before, remove from spectators if so
+    const spectatorIndex = waitingRoom.spectators.findIndex(s => s.id === socket.id);
+    if (spectatorIndex !== -1) {
+      waitingRoom.spectators.splice(spectatorIndex, 1);
+    }
     
     // Add player to waiting room if not already there
     const existingPlayerIndex = waitingRoom.players.findIndex(p => p.id === socket.id);
@@ -173,7 +283,8 @@ io.on('connection', (socket) => {
         name: `Player ${socket.id.substring(0, 6)}`, // Use consistent naming format
         address: data.address || 'anonymous',
         joinedAt: Date.now(),
-        ready: false
+        ready: false,
+        isParticipant: data.isParticipant || false
       };
       
       // Add to waiting room
@@ -197,6 +308,9 @@ io.on('connection', (socket) => {
       if (data.address) {
         waitingRoom.players[existingPlayerIndex].address = data.address;
       }
+      if (data.isParticipant !== undefined) {
+        waitingRoom.players[existingPlayerIndex].isParticipant = data.isParticipant;
+      }
     }
     
     // Send current waiting room status to the client
@@ -211,6 +325,12 @@ io.on('connection', (socket) => {
       players: waitingRoom.players,
       timeLeft: waitingRoom.timeLeft,
       gameStarting: waitingRoom.gameStarting
+    });
+    
+    // Also send current bets to the newly registered player
+    socket.emit('betUpdate', {
+      bets: waitingRoom.bets,
+      totalPool: waitingRoom.totalPool
     });
   });
   
@@ -390,6 +510,13 @@ io.on('connection', (socket) => {
         timeLeft: waitingRoom.timeLeft,
         gameStarting: waitingRoom.gameStarting
       });
+    }
+    
+    // Also check and remove from spectators
+    const spectatorIndex = waitingRoom.spectators.findIndex(s => s.id === socket.id);
+    if (spectatorIndex !== -1) {
+      waitingRoom.spectators.splice(spectatorIndex, 1);
+      console.log(`Spectator removed. ${waitingRoom.spectators.length} spectators remaining.`);
     }
     
     // Remove from active players
