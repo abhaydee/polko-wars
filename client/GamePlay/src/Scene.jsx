@@ -60,21 +60,19 @@ export function Scene({ onFinishLinePickup, onPickup, setGameStarted, notify }) 
   const frameCountRef = useRef(0);
   const [startLineVisible, setStartLineVisible] = useState(true);
   const [finishLineVisible, setFinishLineVisible] = useState(true);
-  const [currentCoinIndex, setCurrentCoinIndex] = useState(0);
+  const [collectedCoins, setCollectedCoins] = useState([]);
   const [finishLineFrame, setFinishLineFrame] = useState(null);
   const navigate = useNavigate();
 
   const handlePickup = (index) => {
-    if (index === currentCoinIndex) {
+    if (!collectedCoins.includes(index)) {
       setPoints((prevPoints) => {
         const newPoints = prevPoints + 1;
         onPickup(newPoints);
         return newPoints;
       });
-      const updatedCoins = [...coins];
-      updatedCoins.splice(index, 1);
-      setCoins(updatedCoins);
-      setCurrentCoinIndex(currentCoinIndex + 1);
+      
+      setCollectedCoins(prev => [...prev, index]);
     }
   };
 
@@ -202,7 +200,12 @@ export function Scene({ onFinishLinePickup, onPickup, setGameStarted, notify }) 
       })}
       
       {coins.map((position, index) => (
-        <Coin key={index} position={position} onPickup={() => handlePickup(index)} index={index} currentCoinIndex={currentCoinIndex} />
+        <Coin 
+          key={index} 
+          position={position} 
+          onPickup={() => handlePickup(index)} 
+          index={index} 
+        />
       ))}
       
       {/* Display connected players count with more details */}
